@@ -2,138 +2,185 @@ import { DocLayout } from '@/components/docs';
 import { CodeBlock } from '@/components/docs';
 import { InteractiveButton } from '@/components/docs';
 import type { NavItem, TocItem, NavLink } from '@/components/docs';
+import docsData from '@/data/docs.json';
 
 interface DocsPageProps {
-  params: {
+  params: Promise<{
     slug?: string[];
-  };
+  }>;
 }
 
-export default function DocsPage({ params }: DocsPageProps) {
-  const slug = params.slug || [];
+export default async function DocsPage({ params }: DocsPageProps) {
+  const resolvedParams = await params;
+  const slug = resolvedParams.slug || [];
   const currentPath = slug.length > 0 ? `/docs/${slug.join('/')}` : '/docs';
 
+  // Build sidebar items from JSON data with nested project documents
   const sidebarItems: NavItem[] = [
     {
-      label: 'Introduction',
-      href: '/docs',
+      label: 'Projects',
+      href: '#',
+      children: docsData.navigation.projects.map((project: any) => ({
+        label: project.label,
+        href: project.href,
+        children: project.documents?.map((doc: any) => ({
+          label: doc.label,
+          href: doc.href,
+        })) || [],
+      })),
     },
     {
-      label: 'Another Page',
-      href: '/docs/another-page',
-    },
-    {
-      label: 'Advanced (A Folder)',
-      href: '/docs/advanced',
-      children: [
-        {
-          label: 'Satori',
-          href: '/docs/advanced/satori',
-        },
-      ],
+      label: 'Your Docs',
+      href: '#',
+      children: docsData.navigation.yourDocs.map((doc) => ({
+        label: doc.label,
+        href: doc.href,
+      })),
     },
   ];
 
-  // Determine page content based on path
-  if (currentPath === '/docs/another-page') {
-    const tocItems: TocItem[] = [
-      {
-        id: 'component',
-        label: 'Component',
-        level: 1,
-      },
-      {
-        id: 'external-component',
-        label: 'External Component',
-        level: 1,
-      },
-    ];
+  // Find the current page data - check projects, project documents, and your docs
+  const allProjectDocs = docsData.navigation.projects.flatMap((project: any) => 
+    project.documents || []
+  );
+  const allDocs = [...docsData.navigation.yourDocs, ...docsData.navigation.projects, ...allProjectDocs];
+  const currentPage = allDocs.find((doc) => doc.href === currentPath);
+  
+  // Check if current path is a project page (not a project document)
+  const currentProject = docsData.navigation.projects.find((p: any) => p.href === currentPath);
 
-    const previous: NavLink = {
-      label: 'Introduction',
-      href: '/docs',
-    };
+  // If page not found, default to introduction
+  if (!currentPage) {
+    const introPage = docsData.navigation.yourDocs.find((doc) => doc.id === 'introduction');
+    if (!introPage) {
+      return <div>Page not found</div>;
+    }
 
-    const next: NavLink = {
-      label: 'Advanced (A Folder)',
-      href: '/docs/advanced',
-    };
+    const tocItems: TocItem[] = introPage.toc || [];
+    // Only show navigation for projects, not for "Your Docs"
+    const isProject = docsData.navigation.projects.some((p: any) => p.href === currentPath);
+    const nav = isProject ? (introPage as any).navigation || {} : {};
 
     return (
       <DocLayout
         sidebarItems={sidebarItems}
         currentPath={currentPath}
-        title="Another Page"
-        lastUpdated="December 4, 2022"
+        title={introPage.title}
+        lastUpdated={introPage.lastUpdated}
         tocItems={tocItems}
-        previous={previous}
-        next={next}
+        previous={isProject ? (nav.previous || undefined) : undefined}
+        next={isProject ? (nav.next || undefined) : undefined}
       >
-        <CodeBlock
-          filename="demo.js"
-          language="javascript"
-          code={`let a = 1;
-console.log(a);`}
-          highlightedLines={[2]}
-        />
-
-        <section id="component" className="mt-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Component
-          </h2>
-          <div className="mt-4">
-            <InteractiveButton />
-          </div>
+      {introPage.content.sections.map((section: any) => (
+        <section key={section.id} id={section.id} className="mt-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.title}</h2>
+          {section.type === 'text' && Array.isArray(section.content) && (
+            <div>
+              {section.content.map((paragraph: string, idx: number) => (
+                <p key={idx} className="text-gray-700 mb-4">
+                  {paragraph}
+                </p>
+              ))}
+            </div>
+          )}
         </section>
-
-        <section id="external-component" className="mt-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            External Component
-          </h2>
-          <div className="mt-4">
-            <InteractiveButton />
-          </div>
-        </section>
+      ))}
       </DocLayout>
     );
   }
 
-  // Default introduction page
-  const tocItems: TocItem[] = [
-    {
-      id: 'getting-started',
-      label: 'Getting Started',
-      level: 1,
-    },
-  ];
+  // If current page is a project (not a project document), show project overview with document list
+  if (currentProject) {
+    const nav = currentProject.navigation || {};
+    const isProject = true;
 
-  const next: NavLink = {
-    label: 'Another Page',
-    href: '/docs/another-page',
-  };
+    return (
+      <DocLayout
+        sidebarItems={sidebarItems}
+        currentPath={currentPath}
+        title={currentProject.title}
+        lastUpdated={currentProject.lastUpdated}
+        tocItems={[]}
+        previous={isProject ? (nav.previous || undefined) : undefined}
+        next={isProject ? (nav.next || undefined) : undefined}
+      >
+        {/* Project Description */}
+        {currentProject.description && (
+          <div className="mb-8">
+            <p className="text-gray-700 text-lg">{currentProject.description}</p>
+          </div>
+        )}
+
+        {/* List of Documents */}
+        {currentProject.documents && currentProject.documents.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Documents</h2>
+            <ul className="space-y-2">
+              {currentProject.documents.map((doc: any) => (
+                <li key={doc.id}>
+                  <a
+                    href={doc.href}
+                    className="text-blue-600 hover:text-blue-800 hover:underline text-lg"
+                  >
+                    {doc.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </DocLayout>
+    );
+  }
+
+  // Render code blocks if they exist
+  const codeBlocks = (currentPage as any).content?.codeBlocks || [];
+  const tocItems: TocItem[] = (currentPage as any).toc || [];
+  // Only show navigation for project documents, not for "Your Docs"
+  const isProjectDoc = allProjectDocs.some((p: any) => p.href === currentPath);
+  const nav = isProjectDoc ? ((currentPage as any).navigation || {}) : {};
 
   return (
     <DocLayout
       sidebarItems={sidebarItems}
       currentPath={currentPath}
-      title="Introduction"
-      lastUpdated="December 4, 2022"
+      title={currentPage.title}
+      lastUpdated={(currentPage as any).lastUpdated}
       tocItems={tocItems}
-      next={next}
+      previous={isProjectDoc ? (nav.previous || undefined) : undefined}
+      next={isProjectDoc ? (nav.next || undefined) : undefined}
     >
-      <section id="getting-started">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">
-          Getting Started
-        </h2>
-        <p className="text-gray-700 mb-4">
-          Welcome to the Developers Documentation. This is a comprehensive guide
-          to help you get started with our platform.
-        </p>
-        <p className="text-gray-700 mb-4">
-          Use the navigation on the left to explore different sections of the
-          documentation.
-        </p>
-      </section>
+      {/* Render code blocks */}
+      {codeBlocks.map((codeBlock: any, idx: number) => (
+        <CodeBlock
+          key={idx}
+          filename={codeBlock.filename}
+          language={codeBlock.language}
+          code={codeBlock.code}
+          highlightedLines={codeBlock.highlightedLines}
+        />
+      ))}
+
+      {/* Render sections */}
+      {currentPage.content.sections.map((section: any) => (
+        <section key={section.id} id={section.id} className="mt-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.title}</h2>
+          {section.type === 'text' && Array.isArray(section.content) && (
+            <div>
+              {section.content.map((paragraph: string, idx: number) => (
+                <p key={idx} className="text-gray-700 mb-4">
+                  {paragraph}
+                </p>
+              ))}
+            </div>
+          )}
+          {section.type === 'component' && section.componentType === 'InteractiveButton' && (
+            <div className="mt-4">
+              <InteractiveButton />
+            </div>
+          )}
+        </section>
+      ))}
     </DocLayout>
   );
 }

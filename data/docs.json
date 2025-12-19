@@ -1,0 +1,169 @@
+{
+  "navigation": {
+    "projects": [
+      {
+        "id": "project-1",
+        "label": "Project 1",
+        "href": "/docs/projects/project-1",
+        "title": "Project 1",
+        "description": "This is Project 1 description. It contains multiple documentation files.",
+        "lastUpdated": "December 4, 2022",
+        "documents": [
+          {
+            "id": "database-query-optimisation",
+            "label": "Database Query optimisation",
+            "href": "/docs/projects/project-1/database-query-optimisation",
+            "title": "Database Query optimisation",
+            "lastUpdated": "December 4, 2022",
+            "content": {
+              "sections": [
+                {
+                  "id": "overview",
+                  "title": "Overview",
+                  "type": "text",
+                  "content": [
+                    "This document covers database query optimization techniques."
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "oci-instance-setup",
+            "label": "OCI Instance setup",
+            "href": "/docs/projects/project-1/oci-instance-setup",
+            "title": "OCI Instance setup",
+            "lastUpdated": "December 4, 2022",
+            "content": {
+              "sections": [
+                {
+                  "id": "overview",
+                  "title": "Overview",
+                  "type": "text",
+                  "content": [
+                    "This document covers OCI instance setup procedures."
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "id": "redis-caching",
+            "label": "Redis caching",
+            "href": "/docs/projects/project-1/redis-caching",
+            "title": "Redis caching",
+            "lastUpdated": "December 4, 2022",
+            "content": {
+              "sections": [
+                {
+                  "id": "overview",
+                  "title": "Overview",
+                  "type": "text",
+                  "content": [
+                    "This document covers Redis caching implementation."
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "navigation": {
+          "previous": null,
+          "next": {
+            "label": "Project 2",
+            "href": "/docs/projects/project-2"
+          }
+        }
+      },
+      {
+        "id": "project-2",
+        "label": "Project 2",
+        "href": "/docs/projects/project-2",
+        "title": "Project 2",
+        "description": "This is Project 2 description.",
+        "lastUpdated": "December 4, 2022",
+        "documents": [],
+        "navigation": {
+          "previous": {
+            "label": "Project 1",
+            "href": "/docs/projects/project-1"
+          },
+          "next": null
+        }
+      }
+    ],
+    "yourDocs": [
+      {
+        "id": "introduction",
+        "label": "Introduction",
+        "href": "/docs",
+        "title": "Introduction",
+        "lastUpdated": "December 4, 2022",
+        "toc": [
+          {
+            "id": "getting-started",
+            "label": "Getting Started",
+            "level": 1
+          }
+        ],
+        "content": {
+          "sections": [
+            {
+              "id": "getting-started",
+              "title": "Getting Started",
+              "type": "text",
+              "content": [
+                "Welcome to the Developers Documentation. This is a comprehensive guide to help you get started with our platform.",
+                "Use the navigation on the left to explore different sections of the documentation."
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "another-page",
+        "label": "Another Page",
+        "href": "/docs/another-page",
+        "title": "Another Page",
+        "lastUpdated": "December 4, 2022",
+        "toc": [
+          {
+            "id": "component",
+            "label": "Component",
+            "level": 1
+          },
+          {
+            "id": "external-component",
+            "label": "External Component",
+            "level": 1
+          }
+        ],
+        "content": {
+          "codeBlocks": [
+            {
+              "filename": "demo.js",
+              "language": "javascript",
+              "code": "let a = 1;\nconsole.log(a);",
+              "highlightedLines": [2]
+            }
+          ],
+          "sections": [
+            {
+              "id": "component",
+              "title": "Component",
+              "type": "component",
+              "componentType": "InteractiveButton"
+            },
+            {
+              "id": "external-component",
+              "title": "External Component",
+              "type": "component",
+              "componentType": "InteractiveButton"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+
