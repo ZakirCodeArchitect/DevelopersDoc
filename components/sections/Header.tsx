@@ -72,7 +72,7 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur-md shadow-sm">
+    <header className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur-md shadow-sm" style={{ fontFamily: 'var(--font-open-sans), sans-serif' }}>
       <div className="flex h-16 items-center justify-between">
         {/* Logo - positioned at absolute left edge */}
         <div className="flex items-center flex-shrink-0 pl-4 sm:pl-6 lg:pl-8 min-w-0">

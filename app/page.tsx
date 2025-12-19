@@ -70,7 +70,7 @@ export default function Home() {
           description="Create beautiful, comprehensive documentation for your projects. Everything you need to help developers understand and use your tools."
           primaryCta={{
             text: 'Get Started',
-            href: '#get-started',
+            href: '/docs',
           }}
           secondaryCta={{
             text: 'View Documentation',

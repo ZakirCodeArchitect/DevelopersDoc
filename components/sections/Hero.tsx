@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 
 interface HeroProps {
   title?: string;
@@ -13,7 +14,7 @@ interface HeroProps {
   };
 }
 
-export const Hero: React.FC<HeroProps> = () => {
+export const Hero: React.FC<HeroProps> = ({ primaryCta }) => {
   return (
     <section className="py-12 md:py-20 lg:py-24 relative overflow-hidden bg-gray-50">
       {/* Background Clouds */}
@@ -57,25 +58,27 @@ export const Hero: React.FC<HeroProps> = () => {
                 </svg>
               </span>
             </h1>
-            <a 
-              href="#get-started" 
-              className="inline-flex items-center gap-2 text-base md:text-lg text-gray-700 hover:text-gray-900 font-medium mt-6 transition-colors"
-            >
-              Get started
-              <svg 
-                className="w-4 h-4" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
+            {primaryCta && (
+              <Link 
+                href={primaryCta.href}
+                className="inline-flex items-center gap-2 text-base md:text-lg text-gray-700 hover:text-gray-900 font-medium mt-6 transition-colors"
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M13 7l5 5m0 0l-5 5m5-5H6" 
-                />
-              </svg>
-            </a>
+                {primaryCta.text}
+                <svg 
+                  className="w-4 h-4" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M13 7l5 5m0 0l-5 5m5-5H6" 
+                  />
+                </svg>
+              </Link>
+            )}
           </div>
 
           {/* Right Side - Laptop with Document Editor */}
