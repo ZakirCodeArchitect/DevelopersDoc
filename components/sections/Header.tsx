@@ -77,8 +77,15 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Logo - positioned at absolute left edge */}
         <div className="flex items-center flex-shrink-0 pl-4 sm:pl-6 lg:pl-8 min-w-0">
           {logo || (
-            <Link href="/" className="text-lg font-normal text-black" style={{ fontFamily: 'var(--font-open-sans), sans-serif' }}>
-              {logoText}
+            <Link href="/" className="flex items-center gap-3">
+              <img 
+                src="/logo.png" 
+                alt={logoText}
+                className="h-8 w-auto"
+              />
+              <span className="text-lg font-normal text-black" style={{ fontFamily: 'var(--font-open-sans), sans-serif' }}>
+                {logoText}
+              </span>
             </Link>
           )}
         </div>

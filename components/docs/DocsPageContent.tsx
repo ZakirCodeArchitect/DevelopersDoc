@@ -51,12 +51,13 @@ const DocsPageContentComponent = ({
   // If current page is a project, show project overview with document list
   if (isProject(currentPage)) {
     return (
-      <div className="flex flex-1 w-full" key={currentPath}>
+      <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]" key={currentPath}>
         <DocContent
           title={currentPage.title}
           lastUpdated={currentPage.lastUpdated}
           previous={currentPage.navigation.previous || undefined}
           next={currentPage.navigation.next || undefined}
+          fullWidth={true}
         >
           {/* Project Description */}
           {currentPage.description && (
@@ -65,9 +66,9 @@ const DocsPageContentComponent = ({
             </div>
           )}
 
-          {/* List of Documents */}
+          {/* Documents Grid */}
           <div className="mt-8">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Documents</h2>
               <button
                 onClick={() => {
@@ -95,23 +96,148 @@ const DocsPageContentComponent = ({
               </button>
             </div>
             {currentPage.documents && currentPage.documents.length > 0 ? (
-              <ul className="space-y-2">
+              <div className="grid grid-cols-1 gap-4">
                 {currentPage.documents.map((doc) => (
-                  <li key={doc.id}>
-                    <a
-                      href={doc.href}
-                      className="text-blue-600 hover:text-blue-800 hover:underline text-lg"
-                    >
-                      {doc.label}
-                    </a>
-                  </li>
+                  <a
+                    key={doc.id}
+                    href={doc.href}
+                    className="group block p-6 bg-white border border-gray-200 rounded-lg hover:border-[#CC561E] hover:shadow-md transition-all duration-200"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 group-hover:text-[#CC561E] transition-colors mb-1">
+                          {doc.label}
+                        </h3>
+                        {doc.title && doc.title !== doc.label && (
+                          <p className="text-sm text-gray-600 line-clamp-2">{doc.title}</p>
+                        )}
+                      </div>
+                      <svg
+                        className="w-5 h-5 text-gray-400 group-hover:text-[#CC561E] transition-colors flex-shrink-0 ml-2"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                    </div>
+                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                      {doc.lastUpdated && (
+                        <span className="text-xs text-gray-500">
+                          Updated {doc.lastUpdated}
+                        </span>
+                      )}
+                      {doc.pages && doc.pages.length > 0 && (
+                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                          {doc.pages.length} {doc.pages.length === 1 ? 'page' : 'pages'}
+                        </span>
+                      )}
+                    </div>
+                  </a>
                 ))}
-              </ul>
+              </div>
             ) : (
-              <p className="text-gray-500 text-sm">No documents yet. Click "Add Document" to create one.</p>
+              <div className="text-center py-12 px-4 bg-gray-50 border border-gray-200 rounded-lg">
+                <svg
+                  className="w-12 h-12 text-gray-400 mx-auto mb-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                <p className="text-gray-500 text-sm mb-2">No documents yet.</p>
+                <p className="text-gray-400 text-xs">Click "Add Document" to create your first document.</p>
+              </div>
             )}
           </div>
         </DocContent>
+        {/* Right Sidebar for Project Overview */}
+        <aside className="w-64 border-l border-gray-200 bg-gray-50 fixed right-0 top-16 h-[calc(100vh-4rem)] flex flex-col">
+          <div className="p-6 flex-1 overflow-y-auto">
+            <h2 className="text-sm font-semibold text-gray-900 mb-6">Project Info</h2>
+            <div className="space-y-6">
+              <div>
+                <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Members</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <img
+                      src="/icons/googleIcon.png"
+                      alt="Gmail"
+                      className="w-4 h-4 flex-shrink-0"
+                    />
+                    <p className="text-xs text-gray-700 truncate">zakirmatloob149@gmail.com</p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Documents</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {currentPage.documents?.length || 0}
+                </p>
+              </div>
+              {currentPage.lastUpdated && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Last Updated</p>
+                  <p className="text-sm text-gray-700">{currentPage.lastUpdated}</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
+            <button
+              onClick={() => {
+                // TODO: Implement Manage Project logic
+                console.log('Manage Project clicked');
+              }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              Manage Project
+            </button>
+          </div>
+        </aside>
         <CreateDocModal />
       </div>
     );
@@ -226,7 +352,7 @@ const DocsPageContentComponent = ({
   // Handle pages - if currentPage is a ProcessedPage, render it
   if (isPageView && page && document) {
     return (
-      <div className="flex flex-1 w-full" key={currentPath}>
+      <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]" key={currentPath}>
         <DocContent
           title={page.title}
           lastUpdated={document.lastUpdated}
