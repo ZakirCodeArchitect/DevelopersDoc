@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { CodeBlock } from './CodeBlock';
 import { DocNavigation } from './DocNavigation';
@@ -13,7 +13,7 @@ interface DocContentProps {
   className?: string;
 }
 
-export const DocContent: React.FC<DocContentProps> = ({
+export const DocContent: React.FC<DocContentProps> = memo(({
   title,
   children,
   lastUpdated,
@@ -24,13 +24,12 @@ export const DocContent: React.FC<DocContentProps> = ({
   return (
     <main
       className={cn(
-        'flex-1 min-h-screen bg-white',
-        'ml-64 mr-64', // Account for sidebars
+        'flex-1 w-full',
         'px-8 py-8',
         className
       )}
     >
-      <article className="max-w-3xl mx-auto">
+      <article className="max-w-3xl w-full">
         <h1 className="text-4xl font-bold text-gray-900 mb-8">
           {title}
         </h1>
@@ -46,7 +45,9 @@ export const DocContent: React.FC<DocContentProps> = ({
       </article>
     </main>
   );
-};
+});
+
+DocContent.displayName = 'DocContent';
 
 // Export CodeBlock for convenience
 export { CodeBlock };

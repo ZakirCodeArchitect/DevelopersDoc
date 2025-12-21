@@ -8,18 +8,33 @@ export interface TocItem {
   level?: number;
 }
 
+export interface PageLink {
+  id: string;
+  title: string;
+  href: string;
+}
+
 interface DocTableOfContentsProps {
   items: TocItem[];
   activeId?: string;
   className?: string;
+  onAddPage?: () => void;
+  projectName?: string;
+  pages?: PageLink[];
+  currentPageId?: string;
 }
 
 export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   items,
   activeId,
   className,
+  onAddPage,
+  projectName,
+  pages,
+  currentPageId,
 }) => {
-  if (items.length === 0) {
+  // Always show the sidebar if there are items, pages, or an add page handler
+  if (items.length === 0 && !pages?.length && !onAddPage) {
     return null;
   }
 
@@ -27,62 +42,108 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
     <aside
       className={cn(
         'w-64 border-l border-gray-200 bg-gray-50',
-        'fixed right-0 top-16 h-[calc(100vh-4rem)] overflow-y-auto',
+        'fixed right-0 top-16 h-[calc(100vh-4rem)] flex flex-col',
         className
       )}
     >
-      <div className="p-6">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">
-          On This Page
-        </h2>
-        <nav className="space-y-2">
-          {items.map((item) => {
-            const isActive = activeId === item.id;
-            const level = item.level || 1;
-            return (
-              <Link
-                key={item.id}
-                href={`#${item.id}`}
-                className={cn(
-                  'block text-sm transition-colors',
-                  level === 1 && 'font-medium',
-                  level > 1 && 'ml-4 text-gray-600',
-                  isActive
-                    ? 'text-blue-600'
-                    : 'text-gray-700 hover:text-gray-900'
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div className="mt-8 pt-8 border-t border-gray-200 space-y-4">
-          <Link
-            href="#feedback"
-            className="text-sm text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-1"
-          >
-            Question? Give us feedback{' '}
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+      <div className="flex flex-col h-full">
+        {/* Scrollable section - "On This Page" and "Pages" */}
+        <div className="p-6 pb-0 flex-1 overflow-y-auto">
+          {items.length > 0 && (
+            <>
+              <h2 className="text-sm font-semibold text-gray-900 mb-4">
+                On This Page
+              </h2>
+              <nav className="space-y-2">
+                {items.map((item) => {
+                  const isActive = activeId === item.id;
+                  const level = item.level || 1;
+                  return (
+                    <Link
+                      key={item.id}
+                      href={`#${item.id}`}
+                      className={cn(
+                        'block text-sm transition-colors',
+                        level === 1 && 'font-medium',
+                        level > 1 && 'ml-4 text-gray-600',
+                        isActive
+                          ? 'text-blue-600'
+                          : 'text-gray-700 hover:text-gray-900'
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </>
+          )}
+
+          {/* Pages list */}
+          {pages && pages.length > 0 && (
+            <>
+              <div className={cn(
+                items.length > 0 ? "mt-8 pt-8 border-t border-gray-200" : ""
+              )}>
+                <h2 className="text-sm font-semibold text-gray-900 mb-4">
+                  Pages
+                </h2>
+                <nav className="space-y-1">
+                  {pages.map((page) => {
+                    const isActive = currentPageId === page.id;
+                    return (
+                      <Link
+                        key={page.id}
+                        href={page.href}
+                        className={cn(
+                          'block text-sm transition-colors py-1.5 px-2 rounded-md',
+                          isActive
+                            ? 'text-blue-600 bg-blue-50 font-medium'
+                            : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                        )}
+                      >
+                        {page.title}
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Sticky bottom section - actions only */}
+        <div className="mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
+          <div className="space-y-6">
+            <Link
+              href="#edit"
+              className="text-sm text-gray-600 hover:text-gray-900 transition-colors block"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </Link>
-          <Link
-            href="#edit"
-            className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            Edit this page
-          </Link>
+              Edit this page
+            </Link>
+            {onAddPage && (
+              <button
+                onClick={onAddPage}
+                className="w-full text-sm text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 border border-gray-200 hover:border-gray-300"
+                title="Add a new page to this document"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                Add Page
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </aside>
