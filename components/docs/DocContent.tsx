@@ -47,11 +47,13 @@ export const DocContent: React.FC<DocContentProps> = memo(({
         </article>
         {/* Footer: Last updated, border, and navigation - Sticky to bottom */}
         <footer className={cn(
-          "w-full mt-auto flex-shrink-0",
-          !fullWidth && "max-w-3xl"
+          "w-full mt-auto flex-shrink-0"
         )}>
           {lastUpdated && (
-            <p className="text-sm text-gray-500 mb-4">
+            <p className={cn(
+              "text-sm text-gray-500 mb-4",
+              !fullWidth && "max-w-3xl"
+            )}>
               Last updated on {lastUpdated}
             </p>
           )}

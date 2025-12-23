@@ -62,3 +62,24 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Prevent sidebar flashing during navigation */
+aside[class*="fixed"] {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
+  /* Force compositing layer */
+  will-change: transform;
+}
+
+nav[class*="space-y"] {
+  contain: layout style paint;
+}
+
+/* Prevent Next.js view transitions from affecting sidebar */
+@supports (view-transition-name: none) {
+  aside[class*="fixed"] {
+    view-transition-name: none !important;
+  }
+}

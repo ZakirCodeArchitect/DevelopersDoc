@@ -116,6 +116,24 @@
           }
         ]
       }
+    },
+    {
+      "id": "reactjs-components-navigation",
+      "label": "reactjs components navigation",
+      "title": "reactjs components navigation",
+      "lastUpdated": "December 23, 2025",
+      "content": {
+        "sections": [
+          {
+            "id": "overview",
+            "title": "Overview",
+            "type": "text",
+            "content": [
+              "abcdef"
+            ]
+          }
+        ]
+      }
     }
   ]
 }

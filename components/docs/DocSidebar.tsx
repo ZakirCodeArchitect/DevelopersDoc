@@ -46,77 +46,63 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   onRenameDoc,
   onDeleteDoc,
 }) => {
-  // Initialize with default state to avoid hydration mismatch
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set(['Your Docs']));
+  // Initialize expanded items from localStorage synchronously to avoid hydration flash
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
+    // This runs only once during initialization, before first render
+    if (typeof window === 'undefined') {
+      return new Set(['Your Docs']); // Server-side default
+    }
+    
+    // Client-side: try to load from localStorage immediately
+    try {
+      const saved = localStorage.getItem('docs-sidebar-expanded');
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[];
+        return new Set(parsed);
+      }
+    } catch {
+      // Fall through to default
+    }
+    
+    // Default: expand "Your Docs"
+    return new Set(['Your Docs']);
+  });
+  
   const [isHydrated, setIsHydrated] = useState(false);
   const itemsRef = useRef(items);
+  const currentPathRef = useRef(currentPath);
+  const prevPathRef = useRef<string | undefined>(currentPath);
+  const navRef = useRef<HTMLElement>(null);
+  const initializedRef = useRef(false);
   
-  // Keep items ref in sync without causing re-renders
+  // Keep refs in sync without causing re-renders
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
-
-  // Load from localStorage on initial mount only
+  
+  // Update currentPath ref only - no re-renders
   useEffect(() => {
-    setIsHydrated(true);
-    
-    // Load from localStorage only once on mount
-    const saved = localStorage.getItem('docs-sidebar-expanded');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as string[];
-        setExpandedItems(new Set(parsed));
-      } catch {
-        // If parsing fails, use default
-        setExpandedItems(new Set(['Your Docs']));
-      }
-    } else {
-      // Default: expand "Your Docs" and auto-expand parent of current path
-      const defaultExpanded = new Set(['Your Docs']);
-      
-      // Auto-expand sections that contain the active page
-      const findParentSection = (items: NavItem[], targetPath: string): string | null => {
-        for (const item of items) {
-          if (item.children) {
-            // Check if any child matches the target path
-            const childMatches = item.children.some((child) => {
-              if (child.href === targetPath) return true;
-              if (child.children) {
-                return findParentSection([child], targetPath) !== null;
-              }
-              return false;
-            });
-            if (childMatches) {
-              return item.label;
-            }
-            // Recursively check children
-            const found = findParentSection(item.children, targetPath);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
+    currentPathRef.current = currentPath;
+  }, [currentPath]);
 
-      if (currentPath) {
-        const parentSection = findParentSection(itemsRef.current, currentPath);
-        if (parentSection) {
-          defaultExpanded.add(parentSection);
-        }
-      }
-      
-      setExpandedItems(defaultExpanded);
+  // Mark as hydrated immediately (no state updates during hydration)
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      setIsHydrated(true);
     }
-  }, []); // Only run once on mount
+  }, []);
 
-  // Auto-expand parent sections when path changes (but preserve existing expanded items)
+  // Auto-expand parent section for current path on initial mount only
   useEffect(() => {
-    if (!isHydrated || !currentPath) return;
+    if (!isHydrated || prevPathRef.current || !currentPath) return;
+    
+    prevPathRef.current = currentPath;
 
-    // Auto-expand sections that contain the active page
+    // Find and expand parent section
     const findParentSection = (navItems: NavItem[], targetPath: string): string | null => {
       for (const item of navItems) {
         if (item.children) {
-          // Check if any child matches the target path
           const childMatches = item.children.some((child) => {
             if (child.href === targetPath) return true;
             if (child.children) {
@@ -124,10 +110,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
             }
             return false;
           });
-          if (childMatches) {
-            return item.label;
-          }
-          // Recursively check children
+          if (childMatches) return item.label;
           const found = findParentSection(item.children, targetPath);
           if (found) return found;
         }
@@ -136,19 +119,10 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     };
 
     const parentSection = findParentSection(itemsRef.current, currentPath);
-    if (parentSection) {
-      // Only add if not already expanded - preserve existing state
-      setExpandedItems(prev => {
-        if (prev.has(parentSection)) {
-          return prev; // No change needed - return same reference to prevent re-render
-        }
-        // Only create new Set if we actually need to add something
-        const newExpanded = new Set(prev);
-        newExpanded.add(parentSection);
-        return newExpanded;
-      });
+    if (parentSection && !expandedItems.has(parentSection)) {
+      setExpandedItems(prev => new Set([...prev, parentSection]));
     }
-  }, [currentPath, isHydrated]); // REMOVED items - use closure to access current items
+  }, [isHydrated, currentPath, expandedItems]);
 
   // Persist expanded items to localStorage - debounced to prevent excessive writes
   useEffect(() => {
@@ -171,15 +145,17 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     setExpandedItems(newExpanded);
   };
 
+  // Check active state using ref (read during initial render only)
   const isActive = (href: string) => {
-    if (!currentPath) return false;
+    const path = currentPathRef.current;
+    if (!path) return false;
     // Exact match
-    if (currentPath === href) return true;
+    if (path === href) return true;
     // For sub-paths, only match if currentPath starts with href + '/' and href is not just '/docs'
     // This prevents '/docs' from matching '/docs/another-page'
-    if (href === '/docs' && currentPath !== '/docs') return false;
+    if (href === '/docs' && path !== '/docs') return false;
     // Allow sub-path matching for other routes (e.g., /docs/projects/project-1 matches /docs/projects)
-    return currentPath.startsWith(href + '/');
+    return path.startsWith(href + '/');
   };
 
   const renderNavItem = (item: NavItem, level: number = 0) => {
@@ -206,7 +182,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
           {!isCollapsibleHeader && !isProject && hasChildren && (
             <button
               onClick={() => toggleExpand(item.label)}
-              className="mr-1 p-1 hover:bg-gray-100 rounded transition-colors"
+              className="mr-1 p-1 hover:bg-gray-100 rounded"
               aria-label={isExpanded ? 'Collapse' : 'Expand'}
             >
               <svg
@@ -232,7 +208,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
             <div className="flex-1 flex items-center gap-1">
             <span
               className={cn(
-                'flex-1 py-1.5 px-2 text-sm rounded-md transition-colors cursor-pointer font-medium',
+                'flex-1 py-1.5 px-2 text-sm rounded-md cursor-pointer font-medium',
                 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 flex items-center gap-1'
               )}
               onClick={() => toggleExpand(item.label)}
@@ -256,15 +232,15 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
               </svg>
             </span>
               {item.label === 'Projects' && onCreateProject && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCreateProject();
-                  }}
-                  className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600 hover:text-gray-900"
-                  aria-label="Create new project"
-                  title="Create new project"
-                >
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCreateProject();
+                }}
+                className="p-1.5 hover:bg-gray-100 rounded text-gray-600 hover:text-gray-900"
+                aria-label="Create new project"
+                title="Create new project"
+              >
                   <svg
                     className="w-4 h-4"
                     fill="none"
@@ -286,7 +262,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
                     e.stopPropagation();
                     onCreateDoc();
                   }}
-                  className="p-1.5 hover:bg-gray-100 rounded transition-colors text-gray-600 hover:text-gray-900"
+                  className="p-1.5 hover:bg-gray-100 rounded text-gray-600 hover:text-gray-900"
                   aria-label="Create new doc"
                   title="Create new doc"
                 >
@@ -310,9 +286,9 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
             <div className="flex-1 flex items-center gap-1 group min-w-0">
               <Link
                 href={item.href}
-                prefetch={true}
+                prefetch={false}
                 className={cn(
-                  'py-1.5 px-2 text-sm rounded-md transition-colors truncate flex-1 min-w-0',
+                  'py-1.5 px-2 text-sm rounded-md truncate flex-1 min-w-0',
                   active
                     ? 'bg-blue-50 text-blue-600 font-medium'
                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
@@ -342,7 +318,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
                   e.preventDefault();
                   toggleExpand(item.label);
                 }}
-                className="p-1 hover:bg-gray-100 rounded transition-colors"
+                className="p-1 hover:bg-gray-100 rounded"
                 aria-label={isExpanded ? 'Collapse' : 'Expand'}
               >
                 <svg
@@ -367,9 +343,9 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
             <div className="flex-1 flex items-center gap-1 group min-w-0">
             <Link
               href={item.href}
-                prefetch={true}
+                prefetch={false}
               className={cn(
-                  'py-1.5 px-2 text-sm rounded-md transition-colors truncate flex-1 min-w-0',
+                  'py-1.5 px-2 text-sm rounded-md truncate flex-1 min-w-0',
                 active
                   ? 'bg-blue-50 text-blue-600 font-medium'
                   : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
@@ -419,8 +395,16 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
         'fixed left-0 top-16 h-[calc(100vh-4rem)] overflow-y-auto',
         className
       )}
+      style={{ 
+        transform: 'translateZ(0)', // Force GPU acceleration
+        willChange: 'auto',
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
+        contain: 'layout style paint' // Isolate rendering
+      }}
+      suppressHydrationWarning
     >
-      <nav className="p-4 space-y-1">
+      <nav ref={navRef} className="p-4 space-y-1">
         {items.map((item) => renderNavItem(item))}
       </nav>
       <div className="absolute bottom-4 left-4 flex items-center gap-2 text-sm text-gray-500">
@@ -443,35 +427,59 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   );
 };
 
-// Custom comparison for DocSidebar to prevent unnecessary re-renders
+// Deep comparison function for NavItem arrays
+const deepCompareNavItems = (prev: NavItem[], next: NavItem[]): boolean => {
+  if (prev.length !== next.length) return false;
+  
+  for (let i = 0; i < prev.length; i++) {
+    const prevItem = prev[i];
+    const nextItem = next[i];
+    
+    if (prevItem.label !== nextItem.label || prevItem.href !== nextItem.href) {
+      return false;
+    }
+    
+    // Deep compare children recursively
+    if (prevItem.children && nextItem.children) {
+      if (!deepCompareNavItems(prevItem.children, nextItem.children)) {
+        return false;
+      }
+    } else if (prevItem.children !== nextItem.children) {
+      // One has children, the other doesn't
+      return false;
+    }
+  }
+  
+  return true;
+};
+
+// Custom comparison for DocSidebar - Ultra-strict to prevent any flashing
+// STRATEGY: Only re-render when structure OR path changes, but batch the updates
 const areSidebarPropsEqual = (
   prevProps: DocSidebarProps,
   nextProps: DocSidebarProps
 ) => {
-  // Compare currentPath
-  if (prevProps.currentPath !== nextProps.currentPath) {
-    return false;
-  }
-
-  // Compare items by structure (length and keys)
-  if (prevProps.items.length !== nextProps.items.length) {
-    return false;
-  }
-
-  // Compare items by their keys (label, href, children length)
-  for (let i = 0; i < prevProps.items.length; i++) {
-    const prev = prevProps.items[i];
-    const next = nextProps.items[i];
-    if (
-      prev.label !== next.label ||
-      prev.href !== next.href ||
-      (prev.children?.length || 0) !== (next.children?.length || 0)
-    ) {
-      return false;
+  // First check: Are items exactly the same reference?
+  if (prevProps.items === nextProps.items) {
+    // Same reference - check if path changed
+    if (prevProps.currentPath === nextProps.currentPath) {
+      return true; // Nothing changed - block re-render
     }
+    // Only path changed - allow minimal re-render
+    return false;
   }
 
-  // Handler functions are stable (via refs), so we don't need to compare them
+  // Items reference changed - do deep comparison
+  if (!deepCompareNavItems(prevProps.items, nextProps.items)) {
+    return false; // Structure actually changed - allow re-render
+  }
+
+  // Structure is same but reference changed - check path
+  if (prevProps.currentPath !== nextProps.currentPath) {
+    return false; // Path changed - allow re-render
+  }
+
+  // Same structure, same path - block re-render
   return true;
 };
 

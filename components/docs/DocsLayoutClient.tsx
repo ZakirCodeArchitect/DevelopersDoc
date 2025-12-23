@@ -1,11 +1,8 @@
 "use client";
 
-import React, { useMemo, useRef, useCallback } from 'react';
-import { usePathname } from 'next/navigation';
-import { DocSidebar, NavItem } from './DocSidebar';
-import { DocContent } from './DocContent';
-import type { NavLink } from './DocNavigation';
-import { DocTableOfContents, TocItem } from './DocTableOfContents';
+import React, { useMemo, useRef, useCallback, memo } from 'react';
+import { StableSidebar } from './StableSidebar';
+import { NavItem } from './DocSidebar';
 import { Header } from '@/components/sections/Header';
 import type { ProcessedProject, ProcessedYourDoc } from '@/lib/docs';
 import { useCreateProject } from './CreateProjectHandler';
@@ -19,19 +16,30 @@ interface DocsLayoutClientProps {
   children: React.ReactNode;
 }
 
+// Separate sidebar wrapper that never re-renders
+const SidebarWrapper = memo(({ 
+  items, 
+  handlers 
+}: { 
+  items: NavItem[]; 
+  handlers: any;
+}) => {
+  return (
+    <StableSidebar
+      items={items}
+      {...handlers}
+    />
+  );
+}, () => true); // NEVER re-render - always return true
+
+SidebarWrapper.displayName = 'SidebarWrapper';
+
 export function DocsLayoutClient({
   sidebarItems,
   processedProjects,
   processedYourDocs,
   children,
 }: DocsLayoutClientProps) {
-  const currentPath = usePathname();
-  const currentPathRef = useRef(currentPath);
-  
-  // Keep ref in sync without causing re-renders
-  React.useEffect(() => {
-    currentPathRef.current = currentPath;
-  }, [currentPath]);
   const { handleCreateProject, CreateProjectModal } = useCreateProject();
   const { handleCreateDoc, CreateDocModal } = useCreateDoc();
   const {
@@ -44,14 +52,35 @@ export function DocsLayoutClient({
   } = useRenameDelete();
 
   // Memoize sidebar items to prevent re-renders when server component re-executes
-  // Use a stable key based on the items structure
-  const sidebarItemsKey = useMemo(() => {
-    return sidebarItems.map(item => `${item.label}:${item.href}:${item.children?.length || 0}`).join('|');
-  }, [sidebarItems]);
+  // Use refs to track previous values and only update when structure actually changes
+  const prevSidebarItemsRef = useRef<NavItem[]>(sidebarItems);
+  const prevKeyRef = useRef<string>('');
   
+  // Create a deep comparison key based on the entire structure
+  const buildStructureKey = useCallback((items: NavItem[]): string => {
+    const buildKey = (item: NavItem): string => {
+      let key = `${item.label}:${item.href}`;
+      if (item.children) {
+        key += `:[${item.children.map(buildKey).join(',')}]`;
+      }
+      return key;
+    };
+    return items.map(buildKey).join('|');
+  }, []);
+  
+  const currentKey = buildStructureKey(sidebarItems);
+  const structureChanged = currentKey !== prevKeyRef.current;
+  
+  // Only update if structure actually changed
   const memoizedSidebarItems = useMemo(() => {
-    return sidebarItems;
-  }, [sidebarItemsKey]);
+    if (structureChanged) {
+      prevKeyRef.current = currentKey;
+      prevSidebarItemsRef.current = sidebarItems;
+      return sidebarItems;
+    }
+    // Return previous reference if structure hasn't changed
+    return prevSidebarItemsRef.current;
+  }, [sidebarItems, currentKey, structureChanged, buildStructureKey]);
 
   // Use refs to store handlers - this prevents re-renders when handlers change
   const handlersRef = useRef({
@@ -85,9 +114,9 @@ export function DocsLayoutClient({
     onDeleteDoc: (...args: Parameters<typeof handleDeleteDoc>) => handlersRef.current.onDeleteDoc(...args),
   }), []); // Empty deps - these wrappers never change
 
-  // Memoize children to prevent re-renders when only path changes
-  // The children prop changes on every navigation, but we can stabilize it
-  const memoizedChildren = useMemo(() => children, [children]);
+  // DON'T memoize children - it changes on every navigation and that's expected
+  // The sidebar is isolated and won't re-render when children changes
+  // because it's a separate component with its own memo
 
   // Memoize navLinks to prevent Header re-renders
   const navLinks = useMemo(() => [
@@ -102,13 +131,12 @@ export function DocsLayoutClient({
         navLinks={navLinks}
       />
       <div className="flex flex-1" style={{ fontFamily: 'var(--font-lilex), monospace' }}>
-        <DocSidebar 
-          items={memoizedSidebarItems} 
-          currentPath={currentPath} 
-          {...stableHandlers}
+        <SidebarWrapper
+          items={memoizedSidebarItems}
+          handlers={stableHandlers}
         />
         <div className="flex-1 min-h-screen bg-white ml-64">
-          {memoizedChildren}
+          {children}
         </div>
       </div>
       <CreateProjectModal />

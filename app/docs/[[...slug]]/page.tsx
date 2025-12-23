@@ -13,6 +13,20 @@ import {
 import docsDataRaw from '@/data/docs.json';
 import { DocsPageContent } from '@/components/docs/DocsPageContent';
 import { redirect } from 'next/navigation';
+import { cache } from 'react';
+
+// Cache the processed data to prevent recreating objects on every navigation
+const getProcessedDocsData = cache(() => {
+  const migratedData = migrateSectionsToPages({ ...docsDataRaw });
+  const data = migratedData as DocsData;
+  const processedProjects = processProjects(data.projects);
+  const processedYourDocs = processYourDocs(data.yourDocs);
+  
+  return {
+    processedProjects,
+    processedYourDocs,
+  };
+});
 
 interface DocsPageProps {
   params: Promise<{
@@ -25,11 +39,8 @@ export default async function DocsPage({ params }: DocsPageProps) {
   const slug = resolvedParams.slug || [];
   const currentPath = slug.length > 0 ? `/docs/${slug.join('/')}` : '/docs';
 
-  // Migrate old data structure if needed, then process the raw data
-  const migratedData = migrateSectionsToPages({ ...docsDataRaw });
-  const data = migratedData as DocsData;
-  const processedProjects = processProjects(data.projects);
-  const processedYourDocs = processYourDocs(data.yourDocs);
+  // Use cached data to maintain same object references across navigations
+  const { processedProjects, processedYourDocs } = getProcessedDocsData();
 
   // Find the current page
   let currentPage = findDocumentByPath(currentPath, processedProjects, processedYourDocs);

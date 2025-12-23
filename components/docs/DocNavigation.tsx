@@ -26,11 +26,11 @@ export const DocNavigation: React.FC<DocNavigationProps> = ({
   return (
     <nav
       className={cn(
-        'flex items-center justify-between w-full',
+        'relative flex items-center w-full',
         className
       )}
     >
-      <div className="flex-1">
+      <div>
         {previous ? (
           <Link
             href={previous.href}
@@ -53,29 +53,27 @@ export const DocNavigation: React.FC<DocNavigationProps> = ({
           </Link>
         ) : null}
       </div>
-      <div className="flex-1 flex justify-end">
-        {next ? (
-          <Link
-            href={next.href}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex"
+      {next ? (
+        <Link
+          href={next.href}
+          className="absolute right-0 flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex"
+        >
+          <span>{next.label}</span>
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            <span>{next.label}</span>
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </Link>
-        ) : null}
-      </div>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </Link>
+      ) : null}
     </nav>
   );
 };
