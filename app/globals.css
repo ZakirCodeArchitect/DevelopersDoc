@@ -83,3 +83,417 @@ nav[class*="space-y"] {
     view-transition-name: none !important;
   }
 }
+
+/* Tiptap Editor Styles - Base */
+.ProseMirror {
+  outline: none !important;
+}
+
+.tiptap-editor .ProseMirror {
+  outline: none !important;
+}
+
+.tiptap-editor .ProseMirror > * + * {
+  margin-top: 0.75rem;
+}
+
+.tiptap-editor .ProseMirror p.is-empty:first-child::before,
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before,
+.tiptap-editor .ProseMirror p:empty:first-child::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+  font-style: italic;
+  opacity: 0.7;
+  display: inline-block;
+}
+
+/* Placeholder for any empty paragraph in editor - Always visible when empty */
+.tiptap-editor .ProseMirror p.is-empty::before,
+.tiptap-editor .ProseMirror p.is-editor-empty::before,
+.tiptap-editor .ProseMirror p:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+  font-style: italic;
+  opacity: 0.7;
+  display: inline-block;
+}
+
+/* Special styling for description placeholder (first paragraph after H1) - Always visible */
+.tiptap-editor .ProseMirror h1 + p.is-empty::before,
+.tiptap-editor .ProseMirror h1 + p.is-editor-empty::before,
+.tiptap-editor .ProseMirror h1 + p:empty::before {
+  content: attr(data-placeholder) !important;
+  color: #6b7280 !important;
+  font-style: italic;
+  opacity: 0.75 !important;
+  display: inline-block;
+}
+
+/* Placeholder for empty H1 (page title) - Always visible when empty */
+.tiptap-editor .ProseMirror h1.is-empty::before,
+.tiptap-editor .ProseMirror h1.is-editor-empty::before,
+.tiptap-editor .ProseMirror h1:empty::before {
+  content: attr(data-placeholder) !important;
+  color: #9ca3af !important;
+  pointer-events: none;
+  font-style: italic;
+  opacity: 0.7;
+  font-weight: 400 !important;
+  display: inline-block;
+}
+
+/* Heading styles in editor - Apply to both */
+.ProseMirror h1,
+.tiptap-editor .ProseMirror h1 {
+  font-size: 2.25rem !important;
+  font-weight: 700 !important;
+  line-height: 2.5rem !important;
+  margin-top: 2rem !important;
+  margin-bottom: 0.5rem !important;
+  color: #111827 !important;
+  position: relative !important;
+  min-height: 2.5rem !important;
+}
+
+/* Border after first paragraph following H1 (for description) */
+.ProseMirror h1 + p,
+.tiptap-editor .ProseMirror h1 + p {
+  margin-top: 0.75rem !important;
+  padding-bottom: 1.25rem !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  margin-bottom: 1.5rem !important;
+  min-height: 2rem !important;
+  position: relative !important;
+}
+
+.ProseMirror h2,
+.tiptap-editor .ProseMirror h2 {
+  font-size: 1.875rem !important;
+  font-weight: 700 !important;
+  line-height: 2.25rem !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+  color: #111827 !important;
+}
+
+.ProseMirror h3,
+.tiptap-editor .ProseMirror h3 {
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+  line-height: 2rem !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+  color: #111827 !important;
+}
+
+/* Paragraph styles */
+.ProseMirror p,
+.tiptap-editor .ProseMirror p {
+  margin-bottom: 0.75rem;
+  line-height: 1.75;
+  color: #374151;
+  font-size: 1rem;
+}
+
+/* List styles - CRITICAL */
+.ProseMirror ul,
+.ProseMirror ol,
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol {
+  padding-left: 2rem !important;
+  margin: 1rem 0 !important;
+  list-style-position: outside !important;
+}
+
+.ProseMirror ul,
+.tiptap-editor .ProseMirror ul {
+  list-style-type: disc !important;
+}
+
+.ProseMirror ol,
+.tiptap-editor .ProseMirror ol {
+  list-style-type: decimal !important;
+}
+
+.ProseMirror ul li,
+.ProseMirror ol li,
+.tiptap-editor .ProseMirror ul li,
+.tiptap-editor .ProseMirror ol li {
+  margin: 0.5rem 0 !important;
+  display: list-item !important;
+}
+
+.ProseMirror li p,
+.tiptap-editor .ProseMirror li p {
+  margin: 0 !important;
+  display: inline !important;
+}
+
+.ProseMirror li > p,
+.tiptap-editor .ProseMirror li > p {
+  display: inline !important;
+}
+
+/* Code styles */
+.tiptap-editor .ProseMirror code {
+  background-color: #f3f4f6;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.875rem;
+  font-family: 'Courier New', Courier, monospace;
+  color: #1f2937;
+}
+
+.tiptap-editor .ProseMirror pre {
+  background-color: #f3f4f6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 1rem 0;
+}
+
+.tiptap-editor .ProseMirror pre code {
+  background: none;
+  color: inherit;
+  font-size: 0.875rem;
+  padding: 0;
+}
+
+/* Blockquote styles */
+.tiptap-editor .ProseMirror blockquote {
+  border-left: 3px solid #e5e7eb;
+  padding-left: 1rem;
+  margin-left: 0;
+  margin-right: 0;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  font-style: italic;
+  color: #6b7280;
+}
+
+/* Link styles */
+.tiptap-editor .ProseMirror a {
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.tiptap-editor .ProseMirror a:hover {
+  color: #1d4ed8;
+}
+
+/* Mark/Highlight styles */
+.tiptap-editor .ProseMirror mark {
+  background-color: #fef08a;
+  padding: 0.125rem 0;
+  border-radius: 0.125rem;
+}
+
+/* Underline */
+.tiptap-editor .ProseMirror u {
+  text-decoration: underline;
+}
+
+/* Strong/Bold */
+.ProseMirror strong,
+.tiptap-editor .ProseMirror strong {
+  font-weight: 600 !important;
+}
+
+/* Emphasis/Italic */
+.ProseMirror em,
+.tiptap-editor .ProseMirror em {
+  font-style: italic !important;
+}
+
+/* Horizontal rule */
+.tiptap-editor .ProseMirror hr {
+  border: none;
+  border-top: 2px solid #e5e7eb;
+  margin: 2rem 0;
+}
+
+/* Task list styles in editor */
+.tiptap-editor .ProseMirror ul[data-type="taskList"] {
+  list-style: none !important;
+  padding-left: 0 !important;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label {
+  flex: 0 0 auto;
+  margin-right: 0.5rem;
+  user-select: none;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] input[type="checkbox"] {
+  cursor: pointer;
+  margin-top: 0.25rem;
+}
+
+/* Task list rendering in view mode */
+ul.task-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+ul.task-list li.task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+ul.task-list li.task-item input[type="checkbox"] {
+  margin-top: 0.25rem;
+  flex-shrink: 0;
+}
+
+/* Prose content styles for rendered HTML */
+.prose h1 {
+  font-size: 2.25rem !important;
+  font-weight: 700 !important;
+  line-height: 2.5rem !important;
+  margin-top: 2rem !important;
+  margin-bottom: 0.5rem !important;
+  color: #111827 !important;
+}
+
+/* Border after first paragraph following H1 in prose (for description) */
+.prose h1 + p {
+  margin-top: 0.75rem !important;
+  padding-bottom: 1.25rem !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  margin-bottom: 1.5rem !important;
+}
+
+/* Style for description in page-description-wrapper (view mode) */
+.page-description-wrapper .prose p:first-child {
+  margin-top: 0 !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.page-description-wrapper .prose p {
+  color: #4b5563 !important;
+  line-height: 1.75 !important;
+}
+
+.prose h2 {
+  font-size: 1.875rem !important;
+  font-weight: 700 !important;
+  line-height: 2.25rem !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+  color: #111827 !important;
+}
+
+.prose h3 {
+  font-size: 1.5rem !important;
+  font-weight: 600 !important;
+  line-height: 2rem !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+  color: #111827 !important;
+}
+
+.prose h4 {
+  font-size: 1.25rem !important;
+  font-weight: 600 !important;
+  line-height: 1.75rem !important;
+  margin-top: 1rem !important;
+  margin-bottom: 0.5rem !important;
+  color: #111827 !important;
+}
+
+.prose p {
+  margin-bottom: 0.75rem;
+  line-height: 1.75;
+  color: #374151;
+}
+
+.prose code {
+  background-color: #f3f4f6;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  font-family: monospace;
+}
+
+.prose pre {
+  background-color: #f3f4f6;
+  border-radius: 0.375rem;
+  padding: 1rem;
+  margin: 1rem 0;
+  overflow-x: auto;
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  font-size: 0.875rem;
+  display: block;
+}
+
+.prose mark {
+  background-color: #fef08a;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.125rem;
+}
+
+.prose a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.prose a:hover {
+  color: #1e40af;
+}
+
+.prose strong {
+  font-weight: 600 !important;
+}
+
+.prose em {
+  font-style: italic !important;
+}
+
+.prose u {
+  text-decoration: underline !important;
+}
+
+.prose ul, .prose ol {
+  margin: 1rem 0;
+  padding-left: 1.5rem;
+}
+
+.prose ul {
+  list-style-type: disc !important;
+}
+
+.prose ol {
+  list-style-type: decimal !important;
+}
+
+.prose li {
+  margin: 0.5rem 0;
+  display: list-item !important;
+}
+
+.prose blockquote {
+  border-left: 4px solid #e5e7eb;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  font-style: italic;
+  color: #6b7280;
+}

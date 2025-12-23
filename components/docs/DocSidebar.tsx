@@ -46,26 +46,9 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   onRenameDoc,
   onDeleteDoc,
 }) => {
-  // Initialize expanded items from localStorage synchronously to avoid hydration flash
+  // Always use server default for initial state to avoid hydration mismatch
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
-    // This runs only once during initialization, before first render
-    if (typeof window === 'undefined') {
-      return new Set(['Your Docs']); // Server-side default
-    }
-    
-    // Client-side: try to load from localStorage immediately
-    try {
-      const saved = localStorage.getItem('docs-sidebar-expanded');
-      if (saved) {
-        const parsed = JSON.parse(saved) as string[];
-        return new Set(parsed);
-      }
-    } catch {
-      // Fall through to default
-    }
-    
-    // Default: expand "Your Docs"
-    return new Set(['Your Docs']);
+    return new Set(['Your Docs']); // Always use server-side default initially
   });
   
   const [isHydrated, setIsHydrated] = useState(false);
@@ -85,11 +68,22 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     currentPathRef.current = currentPath;
   }, [currentPath]);
 
-  // Mark as hydrated immediately (no state updates during hydration)
+  // Mark as hydrated and load localStorage (after hydration is complete)
   useEffect(() => {
     if (!initializedRef.current) {
       initializedRef.current = true;
       setIsHydrated(true);
+      
+      // Load from localStorage after hydration
+      try {
+        const saved = localStorage.getItem('docs-sidebar-expanded');
+        if (saved) {
+          const parsed = JSON.parse(saved) as string[];
+          setExpandedItems(new Set(parsed));
+        }
+      } catch {
+        // Keep default if localStorage fails
+      }
     }
   }, []);
 

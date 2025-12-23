@@ -12,6 +12,7 @@ interface DocContentProps {
   next?: NavLink;
   className?: string;
   fullWidth?: boolean;
+  hideTitle?: boolean;
 }
 
 export const DocContent: React.FC<DocContentProps> = memo(({
@@ -22,6 +23,7 @@ export const DocContent: React.FC<DocContentProps> = memo(({
   next,
   className,
   fullWidth = false,
+  hideTitle = false,
 }) => {
   return (
     <main
@@ -38,9 +40,11 @@ export const DocContent: React.FC<DocContentProps> = memo(({
           "w-full flex flex-col flex-1 min-h-0",
           fullWidth ? "max-w-full" : "max-w-3xl"
         )}>
-          <h1 className="text-4xl font-bold text-gray-900 mb-8">
-            {title}
-          </h1>
+          {!hideTitle && (
+            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+              {title}
+            </h1>
+          )}
           <div className="prose prose-gray max-w-none space-y-6 flex-1">
             {children}
           </div>

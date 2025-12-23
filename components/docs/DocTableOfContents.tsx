@@ -19,6 +19,7 @@ interface DocTableOfContentsProps {
   activeId?: string;
   className?: string;
   onAddPage?: () => void;
+  onEditPage?: () => void;
   projectName?: string;
   pages?: PageLink[];
   currentPageId?: string;
@@ -29,6 +30,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   activeId,
   className,
   onAddPage,
+  onEditPage,
   projectName,
   pages,
   currentPageId,
@@ -114,13 +116,29 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
 
         {/* Sticky bottom section - actions only */}
         <div className="mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
-          <div className="space-y-6">
-            <Link
-              href="#edit"
-              className="text-sm text-gray-600 hover:text-gray-900 transition-colors block"
-            >
-              Edit this page
-            </Link>
+          <div className="space-y-3">
+            {onEditPage && (
+              <button
+                onClick={onEditPage}
+                className="w-full text-sm text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 border border-gray-200 hover:border-gray-300"
+                title="Edit this page"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
+                </svg>
+                Edit this page
+              </button>
+            )}
             {onAddPage && (
               <button
                 onClick={onAddPage}

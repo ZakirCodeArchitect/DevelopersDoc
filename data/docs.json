@@ -29,25 +29,7 @@
           "id": "kyc-and-project-setup",
           "label": "kyc and project setup",
           "title": "kyc and project setup",
-          "lastUpdated": "December 21, 2025",
-          "content": {
-            "sections": [
-              {
-                "id": "overview",
-                "title": "Overview",
-                "type": "text",
-                "content": [
-                  "contract is mandatory"
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "id": "testing-new-page",
-          "label": "testing new page",
-          "title": "testing new page",
-          "lastUpdated": "December 21, 2025",
+          "lastUpdated": "December 24, 2025",
           "content": {
             "pages": [
               {
@@ -59,35 +41,50 @@
                     "title": "Overview",
                     "type": "text",
                     "content": [
-                      "goj4g"
+                      "contract is mandatory"
                     ]
                   }
                 ]
               },
               {
-                "id": "kkkk",
-                "title": "kkkk",
+                "id": "react-rendering-components",
+                "title": "React rendering components",
                 "sections": [
                   {
-                    "id": "kkkk-section",
-                    "title": "kkkk",
-                    "type": "text",
+                    "id": "react-rendering-components-content",
+                    "title": "",
+                    "type": "html",
                     "content": [
-                      "kkk"
+                      "<p></p>",
+                      "<p>server components</p>"
                     ]
                   }
                 ]
               },
               {
-                "id": "page-2",
-                "title": "page 2",
+                "id": "abdec",
+                "title": "abdec",
                 "sections": [
                   {
-                    "id": "page-2-section",
-                    "title": "page 2",
+                    "id": "abdec-section",
+                    "title": "",
                     "type": "text",
                     "content": [
-                      "abcdef"
+                      ""
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "dddd",
+                "title": "Untitled",
+                "sections": [
+                  {
+                    "id": "dddd-content",
+                    "title": "",
+                    "type": "html",
+                    "content": [
+                      "<p></p>"
                     ]
                   }
                 ]

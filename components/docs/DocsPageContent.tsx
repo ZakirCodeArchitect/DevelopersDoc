@@ -7,9 +7,76 @@ import { DocTableOfContents, TocItem, PageLink } from './DocTableOfContents';
 import type { NavLink } from './DocNavigation';
 import type { ProcessedDocument, ProcessedProject, ProcessedYourDoc, ProcessedPage } from '@/lib/docs';
 import { isProject, isProjectDocument, isPage, getDocumentForPage } from '@/lib/docs';
-import { useState, useEffect, useRef, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import { useCreateDoc } from './CreateDocHandler';
 import { useAddPage } from './AddPageHandler';
+import dynamic from 'next/dynamic';
+
+// Dynamically import DocEditor to avoid SSR issues with Tiptap
+const DocEditor = dynamic(() => import('./DocEditor'), { ssr: false });
+
+// Helper function to convert page sections to HTML (for Tiptap)
+const convertPageToHTML = (page: ProcessedPage) => {
+  let html = '';
+
+  // Add page title as H1 at the top (empty if no title)
+  html += `<h1>${page.title || ''}</h1>`;
+  
+  // Track if we found a description (first section without title)
+  let hasDescription = false;
+  let firstSectionIndex = -1;
+
+  // Find first section without title (this is the description)
+  page.sections.forEach((section, index) => {
+    if (!section.title && !hasDescription) {
+      hasDescription = true;
+      firstSectionIndex = index;
+      // Add description content
+      if (section.type === 'html' && Array.isArray(section.content)) {
+        const content = section.content.join('').trim();
+        html += content ? content : '<p></p>';
+      } else if (section.type === 'text' && Array.isArray(section.content)) {
+        const content = section.content.filter(p => p.trim()).map(p => `<p>${p}</p>`).join('');
+        html += content ? content : '<p></p>';
+      }
+    }
+  });
+
+  // If no description found, add empty paragraph
+  if (!hasDescription) {
+    html += '<p></p>';
+  }
+
+  // Now add rest of the sections (with H2 titles)
+  page.sections.forEach((section, index) => {
+    // Skip the first section without title (description) as we already added it
+    if (index === firstSectionIndex) {
+      return;
+    }
+
+    // Add section heading only if title exists
+    if (section.title) {
+      html += `<h2>${section.title}</h2>`;
+    }
+
+    // Add section content
+    if (section.type === 'html' && Array.isArray(section.content)) {
+      section.content.forEach((htmlContent: string) => {
+        if (htmlContent.trim()) {
+          html += htmlContent;
+        }
+      });
+    } else if (section.type === 'text' && Array.isArray(section.content)) {
+      section.content.forEach((paragraph: string) => {
+        if (paragraph.trim()) {
+          html += `<p>${paragraph}</p>`;
+        }
+      });
+    }
+  });
+
+  return html || '<h1></h1><p></p>';
+};
 
 interface DocsPageContentProps {
   currentPath: string;
@@ -25,6 +92,7 @@ const DocsPageContentComponent = ({
   processedYourDocs,
 }: DocsPageContentProps) => {
   const [activeTocId, setActiveTocId] = useState<string | undefined>();
+  const [isEditing, setIsEditing] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const elementsRef = useRef<HTMLElement[]>([]);
   const { handleCreateDoc, CreateDocModal } = useCreateDoc();
@@ -349,6 +417,39 @@ const DocsPageContentComponent = ({
     };
   }, [tocItemsKey, currentPath]);
 
+  // Handle save for editor
+  const handleSaveContent = useCallback(async (content: any) => {
+    if (!page || !document) return;
+
+    try {
+      const apiUrl = `/api/docs/${document.id}/pages/${page.id}`;
+
+      const response = await fetch(apiUrl, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content,
+          projectId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save content');
+      }
+
+      const data = await response.json();
+      
+      // Close editor and reload page to show updated content
+      setIsEditing(false);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error saving content:', error);
+      alert('Failed to save content. Please try again.');
+    }
+  }, [page, document, projectId]);
+
   // Handle pages - if currentPage is a ProcessedPage, render it
   if (isPageView && page && document) {
     return (
@@ -358,32 +459,82 @@ const DocsPageContentComponent = ({
           lastUpdated={document.lastUpdated}
           previous={page.navigation.previous || undefined}
           next={page.navigation.next || undefined}
+          hideTitle={isEditing}
         >
-          {/* Render sections within this page */}
-          {page.sections.map((section) => (
-            <section key={section.id} id={section.id} className="mt-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.title}</h2>
-              {section.type === 'text' && Array.isArray(section.content) && (
-                <div>
-                  {section.content.map((paragraph: string, idx: number) => (
-                    <p key={idx} className="text-gray-700 mb-4">
-                      {paragraph}
-                    </p>
-                  ))}
+          {/* Show editor or content based on editing state */}
+          {isEditing ? (
+            <DocEditor
+              initialContent={convertPageToHTML(page)}
+              onSave={handleSaveContent}
+              onClose={() => setIsEditing(false)}
+            />
+          ) : (
+            <>
+              {/* Render page description (first section without title) above border */}
+              {page.sections.length > 0 && !page.sections[0].title && (
+                <div className="page-description-wrapper pb-5 border-b border-gray-200 mb-8">
+                  {page.sections[0].type === 'html' && Array.isArray(page.sections[0].content) && (
+                    <div 
+                      className="prose prose-gray max-w-none"
+                      dangerouslySetInnerHTML={{ __html: page.sections[0].content.join('') }}
+                    />
+                  )}
+                  {page.sections[0].type === 'text' && Array.isArray(page.sections[0].content) && (
+                    <div>
+                      {page.sections[0].content.map((paragraph: string, idx: number) => (
+                        <p key={idx} className="text-gray-700 mb-4">
+                          {paragraph}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
-              {section.type === 'component' && section.componentType === 'InteractiveButton' && (
-                <div className="mt-4">
-                  <InteractiveButton />
-                </div>
-              )}
-            </section>
-          ))}
+
+              {/* Render rest of the sections */}
+              {page.sections.map((section, index) => {
+                // Skip first section if it's the description (no title)
+                if (index === 0 && !section.title) {
+                  return null;
+                }
+
+                return (
+                  <section key={section.id} id={section.id} className="mt-8">
+                    {/* Only render title if it exists */}
+                    {section.title && (
+                      <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.title}</h2>
+                    )}
+                    {section.type === 'html' && Array.isArray(section.content) && (
+                      <div 
+                        className="prose prose-gray max-w-none"
+                        dangerouslySetInnerHTML={{ __html: section.content.join('') }}
+                      />
+                    )}
+                    {section.type === 'text' && Array.isArray(section.content) && (
+                      <div>
+                        {section.content.map((paragraph: string, idx: number) => (
+                          <p key={idx} className="text-gray-700 mb-4">
+                            {paragraph}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    {section.type === 'component' && section.componentType === 'InteractiveButton' && (
+                      <div className="mt-4">
+                        <InteractiveButton />
+                      </div>
+                    )}
+                  </section>
+                );
+              })}
+            </>
+          )}
         </DocContent>
         <DocTableOfContents 
           items={tocItems} 
           activeId={activeTocId}
           onAddPage={() => handleAddPage(document.id, document.title, projectId)}
+          onEditPage={() => setIsEditing(true)}
           projectName={projectName}
           pages={document.pages.map(p => ({
             id: p.id,

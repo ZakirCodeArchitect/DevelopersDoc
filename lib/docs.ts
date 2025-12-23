@@ -4,7 +4,7 @@ import type { NavItem, TocItem, NavLink } from '@/components/docs';
 export interface DocumentSection {
   id: string;
   title: string;
-  type: 'text' | 'component';
+  type: 'text' | 'html' | 'component';
   content?: string[];
   componentType?: string;
 }

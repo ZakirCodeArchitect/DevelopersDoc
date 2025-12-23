@@ -30,13 +30,13 @@ export async function POST(
     // Default content if not provided
     const sectionContent = content || [''];
 
-    // Create a new page with a default section
+    // Create a new page with a default section (without duplicate title)
     const newPage = {
       id: pageId,
       title: title.trim(),
       sections: [{
         id: `${pageId}-section`,
-        title: title.trim(),
+        title: '', // Don't duplicate the page title as section title
         type: 'text' as const,
         content: Array.isArray(sectionContent) ? sectionContent : [sectionContent],
       }],
