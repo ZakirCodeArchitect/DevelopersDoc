@@ -42,23 +42,30 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Create new document data
+      // Create new document data with pages format
       const newDoc = {
         id: docId,
         label: name,
         title: name,
+        description: description,
         lastUpdated: new Date().toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',
         }),
         content: {
-          sections: [
+          pages: [
             {
-              id: 'overview',
-              title: 'Overview',
-              type: 'text',
-              content: [description],
+              id: 'untitled-page',
+              title: 'Untitled page',
+              sections: [
+                {
+                  id: 'untitled-page-content',
+                  title: '',
+                  type: 'html',
+                  content: ['<p></p>'],
+                },
+              ],
             },
           ],
         },
@@ -74,8 +81,8 @@ export async function POST(request: NextRequest) {
       const filePath = path.join(process.cwd(), 'data', 'docs.json');
       await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
 
-      // Generate href for project document
-      const href = `/docs/projects/${projectId}/${docId}`;
+      // Generate href for project document's first page
+      const href = `/docs/projects/${projectId}/${docId}/untitled-page`;
 
       return NextResponse.json({
         success: true,
@@ -93,23 +100,30 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Create new document data
+      // Create new document data with pages format
       const newDoc = {
         id: docId,
         label: name,
         title: name,
+        description: description,
         lastUpdated: new Date().toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'long',
           day: 'numeric',
         }),
         content: {
-          sections: [
+          pages: [
             {
-              id: 'overview',
-              title: 'Overview',
-              type: 'text',
-              content: [description],
+              id: 'untitled-page',
+              title: 'Untitled page',
+              sections: [
+                {
+                  id: 'untitled-page-content',
+                  title: '',
+                  type: 'html',
+                  content: ['<p></p>'],
+                },
+              ],
             },
           ],
         },
@@ -122,8 +136,8 @@ export async function POST(request: NextRequest) {
       const filePath = path.join(process.cwd(), 'data', 'docs.json');
       await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
 
-      // Generate href
-      const href = `/docs/${docId}`;
+      // Generate href to first page
+      const href = `/docs/${docId}/untitled-page`;
 
       return NextResponse.json({
         success: true,

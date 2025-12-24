@@ -177,8 +177,8 @@ const DocsPageContentComponent = ({
                         <h3 className="text-lg font-semibold text-gray-900 group-hover:text-[#CC561E] transition-colors mb-1" style={{ textDecoration: 'none' }}>
                           {doc.label}
                         </h3>
-                        {doc.title && doc.title !== doc.label && (
-                          <p className="text-sm text-gray-600 line-clamp-2">{doc.title}</p>
+                        {doc.description && (
+                          <p className="text-sm text-gray-600 line-clamp-2">{doc.description}</p>
                         )}
                       </div>
                       <svg

@@ -26,6 +26,7 @@ export interface DocumentData {
   id: string;
   label: string;
   title: string;
+  description?: string;
   lastUpdated: string;
   content: {
     pages: DocumentPage[];
@@ -46,6 +47,7 @@ export interface YourDocData {
   id: string;
   label: string;
   title: string;
+  description?: string;
   lastUpdated: string;
   content: {
     pages: DocumentPage[];
@@ -231,6 +233,7 @@ export function processProjects(projects: ProjectData[]): ProcessedProject[] {
         id: doc.id,
         label: doc.label,
         title: doc.title,
+        description: doc.description,
         lastUpdated: doc.lastUpdated,
         href: generateProjectDocumentHref(project.id, doc.id),
         pages: processedPages,
@@ -307,6 +310,7 @@ export function processYourDocs(yourDocs: YourDocData[]): ProcessedYourDoc[] {
       id: doc.id,
       label: doc.label,
       title: doc.title,
+      description: doc.description,
       lastUpdated: doc.lastUpdated,
       href: generateYourDocHref(doc.id),
       pages: processedPages,

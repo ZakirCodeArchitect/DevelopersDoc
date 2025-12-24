@@ -100,6 +100,50 @@
               }
             ]
           }
+        },
+        {
+          "id": "support-system",
+          "label": "Support System",
+          "title": "Support System",
+          "lastUpdated": "December 24, 2025",
+          "content": {
+            "sections": [
+              {
+                "id": "overview",
+                "title": "Overview",
+                "type": "text",
+                "content": [
+                  "Website support system for queries"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "macbook-pro",
+          "label": "Macbook Pro",
+          "title": "Macbook Pro",
+          "description": "M3 Chip",
+          "lastUpdated": "December 24, 2025",
+          "content": {
+            "pages": [
+              {
+                "id": "untitled-page",
+                "title": "Macbook User manual",
+                "sections": [
+                  {
+                    "id": "untitled-page-content",
+                    "title": "",
+                    "type": "html",
+                    "content": [
+                      "<p>Keychain permission guide</p>",
+                      "<p></p>"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
         }
       ]
     }
