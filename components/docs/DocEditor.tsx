@@ -10,6 +10,9 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Highlight from "@tiptap/extension-highlight";
 import CharacterCount from "@tiptap/extension-character-count";
+import Subscript from "@tiptap/extension-subscript";
+import Superscript from "@tiptap/extension-superscript";
+import Image from "@tiptap/extension-image";
 
 import { createLowlight } from "lowlight";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
@@ -32,6 +35,43 @@ export default function DocEditor({
 }: DocEditorProps) {
   const editor = useEditor({
     immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        class: "focus:outline-none min-h-[400px] px-8 py-6",
+      },
+      handleDrop: (view, event, slice, moved) => {
+        if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+          const files = event.dataTransfer.files;
+          const file = files[0];
+
+          if (file.type.startsWith('image/')) {
+            event.preventDefault();
+            
+            if (file.size > 5 * 1024 * 1024) {
+              alert("File size should not exceed 5MB");
+              return true;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const url = e.target?.result as string;
+              if (url && editor) {
+                const { schema } = view.state;
+                const coordinates = view.posAtCoords({ left: event.clientX, top: event.clientY });
+                if (coordinates) {
+                  const node = schema.nodes.image.create({ src: url });
+                  const transaction = view.state.tr.insert(coordinates.pos, node);
+                  view.dispatch(transaction);
+                }
+              }
+            };
+            reader.readAsDataURL(file);
+            return true;
+          }
+        }
+        return false;
+      },
+    },
     extensions: [
       StarterKit.configure({
         codeBlock: false, // We'll use CodeBlockLowlight instead
@@ -79,13 +119,23 @@ export default function DocEditor({
         nested: true,
       }),
       Underline,
+      Subscript,
+      Superscript,
       TextAlign.configure({
         types: ["heading", "paragraph"],
+        alignments: ["left", "center", "right", "justify"],
       }),
       Highlight.configure({
         multicolor: true,
       }),
       CharacterCount,
+      Image.configure({
+        inline: true,
+        allowBase64: true,
+        HTMLAttributes: {
+          class: "max-w-full h-auto rounded-lg",
+        },
+      }),
       CodeBlockLowlight.configure({
         lowlight,
         HTMLAttributes: {
@@ -97,15 +147,10 @@ export default function DocEditor({
     parseOptions: {
       preserveWhitespace: 'full',
     },
-    editorProps: {
-      attributes: {
-        class: "focus:outline-none min-h-[400px] px-4 py-2",
-      },
-    },
   });
 
   return (
-    <div className="w-full flex flex-col">
+    <div className="w-full flex flex-col max-w-full">
       {/* Header with close button */}
       <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
@@ -139,10 +184,12 @@ export default function DocEditor({
       </div>
 
       {/* Toolbar */}
-      <EditorToolbar editor={editor} />
+      <div className="w-full mb-4">
+        <EditorToolbar editor={editor} />
+      </div>
 
       {/* Editor Content */}
-      <div className="flex-1 tiptap-editor">
+      <div className="flex-1 tiptap-editor w-full">
         <EditorContent editor={editor} />
       </div>
     </div>

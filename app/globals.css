@@ -87,14 +87,24 @@ nav[class*="space-y"] {
 /* Tiptap Editor Styles - Base */
 .ProseMirror {
   outline: none !important;
+  min-height: 400px;
 }
 
 .tiptap-editor .ProseMirror {
   outline: none !important;
+  font-size: 16px;
+  line-height: 1.6;
+  color: #1f2937;
 }
 
 .tiptap-editor .ProseMirror > * + * {
   margin-top: 0.75rem;
+}
+
+/* Editor background */
+.tiptap-editor {
+  background: white;
+  border-radius: 0.5rem;
 }
 
 .tiptap-editor .ProseMirror p.is-empty:first-child::before,
@@ -286,9 +296,33 @@ nav[class*="space-y"] {
 
 /* Mark/Highlight styles */
 .tiptap-editor .ProseMirror mark {
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.tiptap-editor .ProseMirror mark[data-color="#bbf7d0"] {
+  background-color: #bbf7d0;
+}
+
+.tiptap-editor .ProseMirror mark[data-color="#bfdbfe"] {
+  background-color: #bfdbfe;
+}
+
+.tiptap-editor .ProseMirror mark[data-color="#fecaca"] {
+  background-color: #fecaca;
+}
+
+.tiptap-editor .ProseMirror mark[data-color="#e9d5ff"] {
+  background-color: #e9d5ff;
+}
+
+.tiptap-editor .ProseMirror mark[data-color="#fef08a"] {
   background-color: #fef08a;
-  padding: 0.125rem 0;
-  border-radius: 0.125rem;
+}
+
+/* Default highlight color */
+.tiptap-editor .ProseMirror mark:not([data-color]) {
+  background-color: #fef08a;
 }
 
 /* Underline */
@@ -306,6 +340,36 @@ nav[class*="space-y"] {
 .ProseMirror em,
 .tiptap-editor .ProseMirror em {
   font-style: italic !important;
+}
+
+/* Strikethrough */
+.ProseMirror s,
+.tiptap-editor .ProseMirror s {
+  text-decoration: line-through !important;
+}
+
+/* Superscript */
+.ProseMirror sup,
+.tiptap-editor .ProseMirror sup {
+  vertical-align: super !important;
+  font-size: 0.75em !important;
+}
+
+/* Subscript */
+.ProseMirror sub,
+.tiptap-editor .ProseMirror sub {
+  vertical-align: sub !important;
+  font-size: 0.75em !important;
+}
+
+/* Image styles */
+.ProseMirror img,
+.tiptap-editor .ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+  display: block;
 }
 
 /* Horizontal rule */

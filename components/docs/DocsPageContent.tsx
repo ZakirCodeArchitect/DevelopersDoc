@@ -460,6 +460,7 @@ const DocsPageContentComponent = ({
           previous={page.navigation.previous || undefined}
           next={page.navigation.next || undefined}
           hideTitle={isEditing}
+          fullWidth={isEditing}
         >
           {/* Show editor or content based on editing state */}
           {isEditing ? (
