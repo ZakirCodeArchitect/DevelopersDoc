@@ -30,6 +30,9 @@ function renderNodeToHTML(node: any): string {
         case 'underline':
           result = `<u>${result}</u>`;
           break;
+        case 'strike':
+          result = `<s>${result}</s>`;
+          break;
         case 'code':
           result = `<code class="bg-gray-100 px-1 py-0.5 rounded text-sm">${result}</code>`;
           break;
@@ -37,7 +40,14 @@ function renderNodeToHTML(node: any): string {
           result = `<a href="${escapeHTML(mark.attrs?.href || '#')}" class="text-blue-600 underline hover:text-blue-800">${result}</a>`;
           break;
         case 'highlight':
-          result = `<mark class="bg-yellow-200">${result}</mark>`;
+          const color = mark.attrs?.color || '#fef08a';
+          result = `<mark data-color="${color}" style="background-color: ${color}">${result}</mark>`;
+          break;
+        case 'subscript':
+          result = `<sub>${result}</sub>`;
+          break;
+        case 'superscript':
+          result = `<sup>${result}</sup>`;
           break;
       }
     });
@@ -53,11 +63,15 @@ function renderNodeToHTML(node: any): string {
       return renderMarks(node.text || '', node.marks);
     
     case 'paragraph':
-      return `<p>${renderContent(node.content)}</p>`;
+      const pAlign = node.attrs?.textAlign;
+      const pStyle = pAlign && pAlign !== 'left' ? ` style="text-align: ${pAlign}"` : '';
+      return `<p${pStyle}>${renderContent(node.content)}</p>`;
     
     case 'heading':
       const level = node.attrs?.level || 1;
-      return `<h${level}>${renderContent(node.content)}</h${level}>`;
+      const hAlign = node.attrs?.textAlign;
+      const hStyle = hAlign && hAlign !== 'left' ? ` style="text-align: ${hAlign}"` : '';
+      return `<h${level}${hStyle}>${renderContent(node.content)}</h${level}>`;
     
     case 'bulletList':
       return `<ul>${renderContent(node.content)}</ul>`;

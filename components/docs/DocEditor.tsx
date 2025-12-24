@@ -13,11 +13,13 @@ import CharacterCount from "@tiptap/extension-character-count";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import Image from "@tiptap/extension-image";
+import { useState, useEffect, useRef } from "react";
 
 import { createLowlight } from "lowlight";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 
 import { EditorToolbar } from "./EditorToolbar";
+import { SlashCommandMenu } from "./SlashCommandMenu";
 
 // Create lowlight instance
 const lowlight = createLowlight();
@@ -33,6 +35,10 @@ export default function DocEditor({
   onSave,
   onClose,
 }: DocEditorProps) {
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashMenuPosition, setSlashMenuPosition] = useState({ top: 0, left: 0 });
+  const slashCommandRef = useRef<{ from: number; to: number } | null>(null);
+
   const editor = useEditor({
     immediatelyRender: false,
     editorProps: {
@@ -147,11 +153,61 @@ export default function DocEditor({
     parseOptions: {
       preserveWhitespace: 'full',
     },
+    onUpdate: ({ editor }) => {
+      // Detect slash command
+      const { state } = editor;
+      const { selection } = state;
+      const { $from } = selection;
+      
+      // Get text before cursor
+      const textBefore = $from.parent.textBetween(
+        Math.max(0, $from.parentOffset - 1),
+        $from.parentOffset,
+        undefined,
+        '\ufffc'
+      );
+      
+      // Check if the last character is /
+      if (textBefore === '/') {
+        // Get cursor coordinates
+        const coords = editor.view.coordsAtPos($from.pos);
+        const editorRect = editor.view.dom.getBoundingClientRect();
+        
+        setSlashMenuPosition({
+          top: coords.bottom,
+          left: coords.left,
+        });
+        
+        // Store the position to delete "/" later
+        slashCommandRef.current = {
+          from: $from.pos - 1,
+          to: $from.pos,
+        };
+        
+        setShowSlashMenu(true);
+      } else if (showSlashMenu && textBefore !== '/') {
+        // Close menu if user continues typing after /
+        setShowSlashMenu(false);
+      }
+    },
   });
 
+  const handleCloseSlashMenu = () => {
+    setShowSlashMenu(false);
+    // Delete the "/" character
+    if (editor && slashCommandRef.current) {
+      editor
+        .chain()
+        .focus()
+        .deleteRange(slashCommandRef.current)
+        .run();
+      slashCommandRef.current = null;
+    }
+  };
+
   return (
-    <div className="w-full flex flex-col max-w-full">
-      {/* Header with close button */}
+    <div className="w-full flex flex-col max-w-full relative">
+      {/* Header with close button - NOT sticky */}
       <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-gray-600">Edit Page</span>
@@ -183,8 +239,8 @@ export default function DocEditor({
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="w-full mb-4">
+      {/* Toolbar - Sticky at top */}
+      <div className="sticky top-16 z-30 bg-white w-full mb-4 pt-4">
         <EditorToolbar editor={editor} />
       </div>
 
@@ -192,6 +248,16 @@ export default function DocEditor({
       <div className="flex-1 tiptap-editor w-full">
         <EditorContent editor={editor} />
       </div>
+
+      {/* Slash Command Menu */}
+      {editor && (
+        <SlashCommandMenu
+          editor={editor}
+          isOpen={showSlashMenu}
+          onClose={handleCloseSlashMenu}
+          position={slashMenuPosition}
+        />
+      )}
     </div>
   );
 }

@@ -137,7 +137,26 @@
                     "type": "html",
                     "content": [
                       "<p>Keychain permission guide</p>",
-                      "<p></p>"
+                      "<h3 style=\"text-align: center\"><u><strong>24-dec-2025 Tasks</strong></u></h3>",
+                      "<p style=\"text-align: center\"><em>zakir matloob</em></p>",
+                      "<ol><li><p>open settings</p></li><li><p>click security</p></li><li><p>open keychain access</p></li><li><p>enter your macbook password or your set fingerprint.</p></li></ol>",
+                      "<p><em>Be carefull do not set any wrong or corrupt private key.</em></p>",
+                      "<p><mark data-color=\"#bfdbfe\" style=\"background-color: #bfdbfe\"><strong>It could harm your macbook.</strong></mark></p>",
+                      "<ul data-type=\"taskList\"><li data-type=\"taskItem\" data-checked=\"false\"><label><input type=\"checkbox\" ><span><p>Create a document of all the private keys.</p></span></label></li></ul>",
+                      "<p>configured all the public keys in the OCI.</p>",
+                      "<p><code class=\"bg-gray-100 px-1 py-0.5 rounded text-sm\">cout&lt;&lt;&quot;Hello&quot;;</code></p>",
+                      "<p><em><a href=\"wwww\" class=\"text-blue-600 underline hover:text-blue-800\">www.haengagepro.com</a></em></p>",
+                      "<pre class=\"bg-gray-100 rounded-md p-4 my-4\"><code class=\"block\">print.f(zakir);</code></pre>",
+                      "<p></p>",
+                      "<p>SDBG</p>",
+                      "<p>ERWHB</p>",
+                      "<p>B</p>",
+                      "<p>ERG</p>",
+                      "<p>ER</p>",
+                      "<p>E</p>",
+                      "<pre class=\"bg-gray-100 rounded-md p-4 my-4\"><code class=\"block\"></code></pre>",
+                      "<hr />",
+                      "<p style=\"text-align: right\"><sub><em>zakir</em></sub><em> Metavision </em><sup><em>Ltd</em></sup></p>"
                     ]
                   }
                 ]

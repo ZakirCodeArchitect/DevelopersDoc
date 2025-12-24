@@ -38,7 +38,7 @@ export const DocContent: React.FC<DocContentProps> = memo(({
       <div className="w-full flex flex-col flex-1 min-h-0">
         <article className={cn(
           "w-full flex flex-col flex-1 min-h-0",
-          fullWidth ? "max-w-full" : "max-w-3xl"
+          fullWidth ? "max-w-full" : "max-w-7xl"
         )}>
           {!hideTitle && (
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
@@ -56,7 +56,7 @@ export const DocContent: React.FC<DocContentProps> = memo(({
           {lastUpdated && (
             <p className={cn(
               "text-sm text-gray-500 mb-4",
-              !fullWidth && "max-w-3xl"
+              !fullWidth && "max-w-7xl"
             )}>
               Last updated on {lastUpdated}
             </p>
