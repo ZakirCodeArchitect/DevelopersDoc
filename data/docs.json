@@ -77,13 +77,22 @@
               },
               {
                 "id": "dddd",
-                "title": "Untitled",
+                "title": "Django",
                 "sections": [
                   {
                     "id": "dddd-content",
                     "title": "",
                     "type": "html",
                     "content": [
+                      "<p>Implementation of chatbot</p>",
+                      "<p><strong>abcdef</strong></p>",
+                      "<ul><li><p>do this</p></li></ul>",
+                      "<p>steps:</p>",
+                      "<ol><li><p>open</p></li><li><p>click</p></li><li><p>close</p></li></ol>",
+                      "<p></p>",
+                      "<ul data-type=\"taskList\"><li data-type=\"taskItem\" data-checked=\"true\"><label><input type=\"checkbox\" checked><span><p>submit reports today</p></span></label></li><li data-type=\"taskItem\" data-checked=\"false\"><label><input type=\"checkbox\" ><span><p>dveov</p></span></label></li><li data-type=\"taskItem\" data-checked=\"false\"><label><input type=\"checkbox\" ><span><p>vein</p></span></label></li><li data-type=\"taskItem\" data-checked=\"false\"><label><input type=\"checkbox\" ><span><p>evnt</p></span></label></li></ul>",
+                      "<blockquote><p>this is important</p></blockquote>",
+                      "<pre class=\"bg-gray-100 rounded-md p-4 my-4\"><code class=\"block\">print(&quot;hello world&quot;);</code></pre>",
                       "<p></p>"
                     ]
                   }

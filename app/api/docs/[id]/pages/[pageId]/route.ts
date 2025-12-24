@@ -69,11 +69,11 @@ function renderNodeToHTML(node: any): string {
       return `<li>${renderContent(node.content)}</li>`;
     
     case 'taskList':
-      return `<ul class="task-list">${renderContent(node.content)}</ul>`;
+      return `<ul data-type="taskList">${renderContent(node.content)}</ul>`;
     
     case 'taskItem':
       const checked = node.attrs?.checked ? 'checked' : '';
-      return `<li class="task-item"><input type="checkbox" ${checked} disabled />${renderContent(node.content)}</li>`;
+      return `<li data-type="taskItem" data-checked="${node.attrs?.checked || false}"><label><input type="checkbox" ${checked}><span>${renderContent(node.content)}</span></label></li>`;
     
     case 'blockquote':
       return `<blockquote>${renderContent(node.content)}</blockquote>`;

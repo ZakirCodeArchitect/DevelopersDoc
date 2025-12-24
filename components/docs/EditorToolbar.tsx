@@ -1,12 +1,36 @@
 "use client";
 
 import type { Editor } from "@tiptap/react";
+import { useEffect, useState } from "react";
 
 export function EditorToolbar({ editor }: { editor: Editor | null }) {
+  const [, forceUpdate] = useState({});
+
+  // Force re-render when editor selection changes
+  useEffect(() => {
+    if (!editor) return;
+
+    const updateHandler = () => {
+      forceUpdate({});
+    };
+
+    editor.on('selectionUpdate', updateHandler);
+    editor.on('transaction', updateHandler);
+
+    return () => {
+      editor.off('selectionUpdate', updateHandler);
+      editor.off('transaction', updateHandler);
+    };
+  }, [editor]);
+
   if (!editor) return null;
 
   const btn = (active: boolean) =>
-    `px-2 py-1 rounded-md text-sm border ${active ? "bg-black text-white" : "bg-white"}`;
+    `px-2 py-1 rounded-md text-sm border transition-colors ${
+      active 
+        ? "bg-black text-white border-black" 
+        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+    }`;
 
   return (
     <div className="flex flex-wrap gap-2 p-3 mb-4 border border-gray-200 rounded-md bg-gray-50">
