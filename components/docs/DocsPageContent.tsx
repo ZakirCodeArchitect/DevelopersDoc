@@ -170,10 +170,11 @@ const DocsPageContentComponent = ({
                     key={doc.id}
                     href={doc.href}
                     className="group block p-6 bg-white border border-gray-200 rounded-lg hover:border-[#CC561E] hover:shadow-md transition-all duration-200"
+                    style={{ textDecoration: 'none' }}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 group-hover:text-[#CC561E] transition-colors mb-1">
+                        <h3 className="text-lg font-semibold text-gray-900 group-hover:text-[#CC561E] transition-colors mb-1" style={{ textDecoration: 'none' }}>
                           {doc.label}
                         </h3>
                         {doc.title && doc.title !== doc.label && (
