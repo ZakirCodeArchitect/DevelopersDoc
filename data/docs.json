@@ -170,15 +170,20 @@
                 "title": "RAG",
                 "sections": [
                   {
-                    "id": "rag-content",
+                    "id": "rag-intro",
                     "title": "",
                     "type": "html",
                     "content": [
-                      "<p>Retrieval Augmented Generation</p>",
-                      "<p></p>",
-                      "<p></p>",
-                      "<p></p>",
-                      "<p></p>"
+                      "<p>Retrieval Augmented Generation</p>"
+                    ]
+                  },
+                  {
+                    "id": "rag-section-1",
+                    "title": "",
+                    "type": "html",
+                    "content": [
+                      "<p>d&#039;svj]d</p>",
+                      "<p>DVRWV ASDVS S</p>"
                     ]
                   }
                 ]

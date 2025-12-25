@@ -9,6 +9,7 @@ interface SlashCommandMenuProps {
   isOpen: boolean;
   onClose: () => void;
   position: { top: number; left: number };
+  positionAbove?: boolean;
 }
 
 interface CommandItem {
@@ -19,7 +20,7 @@ interface CommandItem {
   category: string;
 }
 
-export function SlashCommandMenu({ editor, isOpen, onClose, position }: SlashCommandMenuProps) {
+export function SlashCommandMenu({ editor, isOpen, onClose, position, positionAbove = false }: SlashCommandMenuProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [filteredItems, setFilteredItems] = useState<CommandItem[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -238,6 +239,7 @@ export function SlashCommandMenu({ editor, isOpen, onClose, position }: SlashCom
         style={{
           top: `${position.top}px`,
           left: `${position.left}px`,
+          transform: positionAbove ? 'translateY(-100%)' : 'none',
         }}
       >
         <div className="p-2">

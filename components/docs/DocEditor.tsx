@@ -44,6 +44,7 @@ export default function DocEditor({
 }: DocEditorProps) {
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [slashMenuPosition, setSlashMenuPosition] = useState({ top: 0, left: 0 });
+  const [slashMenuPositionAbove, setSlashMenuPositionAbove] = useState(false);
   const slashCommandRef = useRef<{ from: number; to: number } | null>(null);
 
   const editor = useEditor({
@@ -93,15 +94,20 @@ export default function DocEditor({
       }),
       Placeholder.configure({
         placeholder: ({ node, pos, editor }) => {
-          // Placeholder for H1 heading (page title)
+          const doc = editor.state.doc;
+          
+          // Placeholder for H1 heading (page title) - only for the first node
           if (node.type.name === 'heading' && node.attrs?.level === 1) {
-            return 'Add Page Title...';
+            // Only show placeholder for the first H1 heading in the document
+            if (doc.firstChild === node) {
+              return 'Add Page Title...';
+            }
+            // No placeholder for other H1 headings
+            return '';
           }
 
           // Placeholder for paragraphs
           if (node.type.name === 'paragraph') {
-            const doc = editor.state.doc;
-            
             // Description paragraph (second child, index 1)
             if (doc.childCount >= 2 && doc.child(1) === node) {
               return 'Add Page Description...';
@@ -413,14 +419,38 @@ export default function DocEditor({
       
       // Check if the last character is /
       if (textBefore === '/') {
-        // Get cursor coordinates
+        // Get cursor coordinates relative to viewport
         const coords = editor.view.coordsAtPos($from.pos);
-        const editorRect = editor.view.dom.getBoundingClientRect();
+        // Get editor container's position relative to viewport
+        const editorContainer = editor.view.dom.closest('.tiptap-editor') || editor.view.dom.parentElement;
+        const editorRect = editorContainer?.getBoundingClientRect() || editor.view.dom.getBoundingClientRect();
+        
+        // Calculate available space below and above cursor
+        const spaceBelow = editorRect.bottom - coords.bottom;
+        const spaceAbove = coords.top - editorRect.top;
+        const menuMaxHeight = 384; // max-h-96 = 24rem = 384px
+        const menuGap = 4; // Gap between cursor and menu
+        const menuMinHeight = 200; // Minimum expected menu height
+        
+        // Determine if menu should be positioned above or below
+        // Position above if there's not enough space below AND more space above
+        const shouldPositionAbove = spaceBelow < menuMinHeight + menuGap && spaceAbove > spaceBelow;
+        
+        // Calculate position relative to editor container
+        let top: number;
+        if (shouldPositionAbove) {
+          // Position at cursor top - transform will flip it above
+          top = coords.top - editorRect.top - menuGap;
+        } else {
+          // Position below cursor
+          top = coords.bottom - editorRect.top + menuGap;
+        }
         
         setSlashMenuPosition({
-          top: coords.bottom,
-          left: coords.left,
+          top: Math.max(0, top), // Ensure it doesn't go above the container
+          left: coords.left - editorRect.left, // Align with cursor position
         });
+        setSlashMenuPositionAbove(shouldPositionAbove);
         
         // Store the position to delete "/" later
         slashCommandRef.current = {
@@ -493,17 +523,17 @@ export default function DocEditor({
         <EditorContent editor={editor} />
         {editor && <TableBubbleMenu editor={editor} />}
         {editor && <TableControls editor={editor} />}
+        {/* Slash Command Menu - positioned relative to editor container */}
+        {editor && (
+          <SlashCommandMenu
+            editor={editor}
+            isOpen={showSlashMenu}
+            onClose={handleCloseSlashMenu}
+            position={slashMenuPosition}
+            positionAbove={slashMenuPositionAbove}
+          />
+        )}
       </div>
-
-      {/* Slash Command Menu */}
-      {editor && (
-        <SlashCommandMenu
-          editor={editor}
-          isOpen={showSlashMenu}
-          onClose={handleCloseSlashMenu}
-          position={slashMenuPosition}
-        />
-      )}
     </div>
   );
 }

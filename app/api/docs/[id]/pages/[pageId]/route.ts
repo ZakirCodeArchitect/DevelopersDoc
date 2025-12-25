@@ -178,28 +178,70 @@ function renderNodeToHTML(node: any): string {
 function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
   const sections: any[] = [];
   let currentSection: any = null;
-  let contentBeforeFirstHeading: string[] = [];
+  let descriptionContent: string[] = [];
   let pageTitle: string = 'Untitled';
   let foundH1 = false;
+  let descriptionCreated = false;
+  let isCollectingDescription = false;
 
   tiptapJSON.content?.forEach((node: any) => {
     // Extract H1 as page title (only the first one)
     if (node.type === 'heading' && node.attrs?.level === 1 && !foundH1) {
       pageTitle = node.content?.map((n: any) => n.text || '').join('').trim() || 'Untitled';
       foundH1 = true;
+      isCollectingDescription = true; // Start collecting description after H1
       return; // Skip adding H1 to content
     }
     
-    if (node.type === 'heading' && node.attrs?.level === 2) {
-      // If we have content before first heading, create a section without a title
-      if (sections.length === 0 && contentBeforeFirstHeading.length > 0) {
+    // If we encounter another H1 after the first one, treat it as a section heading
+    if (node.type === 'heading' && node.attrs?.level === 1 && foundH1) {
+      // Finalize description if we're still collecting it
+      if (isCollectingDescription && descriptionContent.length > 0) {
         sections.push({
           id: `${pageId}-intro`,
-          title: '', // Empty title - content before first H2
+          title: '', // Empty title - this is the description
           type: 'html',
-          content: contentBeforeFirstHeading,
+          content: descriptionContent,
         });
-        contentBeforeFirstHeading = [];
+        descriptionContent = [];
+        descriptionCreated = true;
+        isCollectingDescription = false;
+      }
+      
+      // Save previous section if exists
+      if (currentSection) {
+        sections.push(currentSection);
+      }
+      
+      // Treat this H1 as a section heading
+      const titleText = node.content?.map((n: any) => n.text || '').join('').trim() || '';
+      const sectionId = titleText
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || `section-${sections.length}`;
+      
+      currentSection = {
+        id: `${pageId}-${sectionId}`,
+        title: titleText,
+        type: 'html',
+        content: [],
+      };
+      return;
+    }
+    
+    if (node.type === 'heading' && node.attrs?.level === 2) {
+      // Finalize description if we're still collecting it
+      if (isCollectingDescription && descriptionContent.length > 0) {
+        sections.push({
+          id: `${pageId}-intro`,
+          title: '', // Empty title - this is the description
+          type: 'html',
+          content: descriptionContent,
+        });
+        descriptionContent = [];
+        descriptionCreated = true;
+        isCollectingDescription = false;
       }
       
       // Save previous section if exists
@@ -225,30 +267,63 @@ function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
       // Add any content (paragraphs, lists, code blocks, etc.) as HTML
       const html = renderNodeToHTML(node);
       if (html.trim()) {
-        if (currentSection) {
-          // Add to current section
-          currentSection.content.push(html);
+        if (isCollectingDescription) {
+          // We're still collecting description - only first content node goes to description
+          if (descriptionContent.length === 0) {
+            // This is the first content after H1 - it's the description
+            descriptionContent.push(html);
+          } else {
+            // We already have description, so finalize it and start a section
+            sections.push({
+              id: `${pageId}-intro`,
+              title: '', // Empty title - this is the description
+              type: 'html',
+              content: descriptionContent,
+            });
+            descriptionCreated = true;
+            isCollectingDescription = false;
+            
+            // Start a new section for this content
+            currentSection = {
+              id: `${pageId}-section-${sections.length}`,
+              title: '',
+              type: 'html',
+              content: [html],
+            };
+          }
         } else {
-          // Add to content before first heading
-          contentBeforeFirstHeading.push(html);
+          // Description already finalized, add to current section or create new one
+          if (currentSection) {
+            // Add to current section
+            currentSection.content.push(html);
+          } else {
+            // Create a new section without title for this content
+            currentSection = {
+              id: `${pageId}-section-${sections.length}`,
+              title: '',
+              type: 'html',
+              content: [html],
+            };
+          }
         }
       }
     }
   });
 
+  // Finalize description if we're still collecting it
+  if (isCollectingDescription && descriptionContent.length > 0) {
+    sections.push({
+      id: `${pageId}-intro`,
+      title: '', // Empty title - this is the description
+      type: 'html',
+      content: descriptionContent,
+    });
+    descriptionCreated = true;
+  }
+
   // Save last section
   if (currentSection) {
     sections.push(currentSection);
-  }
-
-  // If we still have content before first heading and no sections, create a section without a title
-  if (sections.length === 0 && contentBeforeFirstHeading.length > 0) {
-    sections.push({
-      id: `${pageId}-content`,
-      title: '', // Empty title - content exists but no heading
-      type: 'html',
-      content: contentBeforeFirstHeading,
-    });
   }
 
   // If no sections were created at all, create an empty default one
