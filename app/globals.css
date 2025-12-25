@@ -777,4 +777,53 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
   color: inherit !important;
 }
 
+/* Fade all background elements when modal is open - consistent styling */
+body.modal-open header {
+  opacity: 0.5 !important;
+  transition: opacity 0.2s ease-in-out;
+}
+
+body.modal-open [class*="Header"] {
+  opacity: 0.5 !important;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Fade left sidebar */
+body.modal-open aside[class*="fixed"][class*="left-0"] {
+  opacity: 0.5 !important;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Fade right sidebar */
+body.modal-open aside[class*="fixed"][class*="right-0"] {
+  opacity: 0.5 !important;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Fade toolbar */
+body.modal-open .editor-toolbar-wrapper {
+  opacity: 0.5 !important;
+  transition: opacity 0.2s ease-in-out;
+}
+
+body.modal-open .editor-toolbar {
+  opacity: 0.5 !important;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Fade editor content */
+body.modal-open .tiptap-editor,
+body.modal-open .ProseMirror,
+body.modal-open [class*="tiptap-editor"],
+body.modal-open [class*="ProseMirror"] {
+  opacity: 0.5 !important;
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* Fade bubble menu button */
+body.modal-open .table-bubble-menu-button {
+  opacity: 0.5 !important;
+  transition: opacity 0.2s ease-in-out;
+}
+
 

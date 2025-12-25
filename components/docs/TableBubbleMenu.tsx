@@ -900,7 +900,7 @@ export function TableBubbleMenu({ editor }: TableBubbleMenuProps) {
             e.preventDefault();
             e.stopPropagation();
           }}
-          className="fixed border border-white rounded-full shadow-lg transition-colors z-50 flex items-center justify-center"
+          className="table-bubble-menu-button fixed border border-white rounded-full shadow-lg transition-colors z-50 flex items-center justify-center"
           style={{
             top: `${buttonPosition.top}px`,
             left: `${buttonPosition.left}px`,
