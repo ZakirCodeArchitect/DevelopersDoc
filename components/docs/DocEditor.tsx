@@ -13,6 +13,11 @@ import CharacterCount from "@tiptap/extension-character-count";
 import Subscript from "@tiptap/extension-subscript";
 import Superscript from "@tiptap/extension-superscript";
 import Image from "@tiptap/extension-image";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { Extension } from "@tiptap/core";
 import { useState, useEffect, useRef } from "react";
 
 import { createLowlight } from "lowlight";
@@ -20,6 +25,8 @@ import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 
 import { EditorToolbar } from "./EditorToolbar";
 import { SlashCommandMenu } from "./SlashCommandMenu";
+import { TableBubbleMenu } from "./TableBubbleMenu";
+import { TableControls } from "./TableControls";
 
 // Create lowlight instance
 const lowlight = createLowlight();
@@ -81,6 +88,8 @@ export default function DocEditor({
     extensions: [
       StarterKit.configure({
         codeBlock: false, // We'll use CodeBlockLowlight instead
+        link: false, // We'll add Link separately
+        underline: false, // We'll add Underline separately
       }),
       Placeholder.configure({
         placeholder: ({ node, pos, editor }) => {
@@ -146,6 +155,241 @@ export default function DocEditor({
         lowlight,
         HTMLAttributes: {
           class: "bg-gray-100 rounded-md p-4 my-4",
+        },
+      }),
+      Table.configure({
+        resizable: true,
+        HTMLAttributes: {
+          class: "border-collapse table-auto w-full my-4",
+        },
+      }),
+      TableRow,
+      TableHeader.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            backgroundColor: {
+              default: null,
+              parseHTML: element => {
+                // Try data attribute first, then inline style
+                const dataColor = element.getAttribute('data-background-color');
+                if (dataColor) return dataColor;
+                
+                // Parse from inline style if present
+                const style = element.getAttribute('style');
+                if (style) {
+                  const bgMatch = style.match(/background-color:\s*([^;!]+)/i);
+                  if (bgMatch) {
+                    return bgMatch[1].trim();
+                  }
+                }
+                return null;
+              },
+            },
+            textColor: {
+              default: null,
+              parseHTML: element => {
+                // Try data attribute first, then inline style
+                const dataColor = element.getAttribute('data-text-color');
+                if (dataColor) return dataColor;
+                
+                // Parse from inline style if present
+                const style = element.getAttribute('style');
+                if (style) {
+                  const colorMatch = style.match(/color:\s*([^;!]+)/i);
+                  if (colorMatch) {
+                    return colorMatch[1].trim();
+                  }
+                }
+                return null;
+              },
+            },
+            textAlign: {
+              default: 'left',
+              parseHTML: element => {
+                // Try inline style first
+                const style = element.getAttribute('style');
+                if (style) {
+                  const alignMatch = style.match(/text-align:\s*([^;!]+)/i);
+                  if (alignMatch) {
+                    return alignMatch[1].trim();
+                  }
+                }
+                return element.style.textAlign || 'left';
+              },
+            },
+            verticalAlign: {
+              default: 'top',
+              parseHTML: element => {
+                // Try inline style first
+                const style = element.getAttribute('style');
+                if (style) {
+                  const vAlignMatch = style.match(/vertical-align:\s*([^;!]+)/i);
+                  if (vAlignMatch) {
+                    return vAlignMatch[1].trim();
+                  }
+                }
+                return element.style.verticalAlign || 'top';
+              },
+            },
+          };
+        },
+        renderHTML({ HTMLAttributes, node }) {
+          const attrs: Record<string, any> = { ...HTMLAttributes };
+          const styles: string[] = [];
+          
+          // Build style string from all node attributes
+          // Use !important to override CSS rules with !important
+          if (node.attrs.textColor) {
+            styles.push(`color: ${node.attrs.textColor} !important`);
+            attrs['data-text-color'] = node.attrs.textColor;
+          }
+          
+          if (node.attrs.backgroundColor) {
+            styles.push(`background-color: ${node.attrs.backgroundColor} !important`);
+            attrs['data-background-color'] = node.attrs.backgroundColor;
+          }
+          
+          if (node.attrs.textAlign) {
+            // Always include text-align, even if it's 'left', to override CSS
+            styles.push(`text-align: ${node.attrs.textAlign} !important`);
+          }
+          
+          if (node.attrs.verticalAlign) {
+            // Always include vertical-align, even if it's 'top', to override CSS
+            styles.push(`vertical-align: ${node.attrs.verticalAlign} !important`);
+          }
+          
+          // Merge with existing HTMLAttributes.style if any
+          if (HTMLAttributes.style) {
+            if (typeof HTMLAttributes.style === 'string') {
+              // Parse and merge existing styles, avoiding duplicates
+              const existingStyles = HTMLAttributes.style.split(';').map(s => s.trim()).filter(s => s);
+              existingStyles.forEach(existingStyle => {
+                const prop = existingStyle.split(':')[0].trim();
+                // Only add if not already in our styles array
+                if (!styles.some(s => s.startsWith(prop))) {
+                  styles.push(existingStyle);
+                }
+              });
+            }
+          }
+          
+          if (styles.length > 0) {
+            attrs.style = styles.join('; ');
+          }
+          
+          // Return the proper structure: ['th', attrs, content]
+          // Use 0 to indicate default content rendering (Tiptap will handle content)
+          return ['th', attrs, 0];
+        },
+      }).configure({
+        HTMLAttributes: {
+          class: "border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold",
+        },
+      }),
+    TableCell.extend({
+      addAttributes() {
+        return {
+          ...this.parent?.(),
+            backgroundColor: {
+              default: null,
+              parseHTML: element => {
+                // Try data attribute first, then inline style
+                const dataColor = element.getAttribute('data-background-color');
+                if (dataColor) return dataColor;
+                
+                // Parse from inline style if present
+                const style = element.getAttribute('style');
+                if (style) {
+                  const bgMatch = style.match(/background-color:\s*([^;!]+)/i);
+                  if (bgMatch) {
+                    return bgMatch[1].trim();
+                  }
+                }
+                return null;
+              },
+            },
+            textColor: {
+              default: null,
+              parseHTML: element => {
+                // Try data attribute first, then inline style
+                const dataColor = element.getAttribute('data-text-color');
+                if (dataColor) return dataColor;
+                
+                // Parse from inline style if present
+                const style = element.getAttribute('style');
+                if (style) {
+                  const colorMatch = style.match(/color:\s*([^;!]+)/i);
+                  if (colorMatch) {
+                    return colorMatch[1].trim();
+                  }
+                }
+                return null;
+              },
+            },
+            textAlign: {
+              default: 'left',
+              parseHTML: element => element.style.textAlign || 'left',
+            },
+            verticalAlign: {
+              default: 'top',
+              parseHTML: element => element.style.verticalAlign || 'top',
+            },
+          };
+        },
+        renderHTML({ HTMLAttributes, node }) {
+          const attrs: Record<string, any> = { ...HTMLAttributes };
+          const styles: string[] = [];
+          
+          // Build style string from all node attributes
+          // Use !important to override CSS rules with !important
+          if (node.attrs.textColor) {
+            styles.push(`color: ${node.attrs.textColor} !important`);
+            attrs['data-text-color'] = node.attrs.textColor;
+          }
+          
+          if (node.attrs.backgroundColor) {
+            styles.push(`background-color: ${node.attrs.backgroundColor} !important`);
+            attrs['data-background-color'] = node.attrs.backgroundColor;
+          }
+          
+          if (node.attrs.textAlign) {
+            // Always include text-align, even if it's 'left', to override CSS
+            styles.push(`text-align: ${node.attrs.textAlign} !important`);
+          }
+          
+          if (node.attrs.verticalAlign) {
+            // Always include vertical-align, even if it's 'top', to override CSS
+            styles.push(`vertical-align: ${node.attrs.verticalAlign} !important`);
+          }
+          
+          // Merge with existing HTMLAttributes.style if any
+          if (HTMLAttributes.style) {
+            if (typeof HTMLAttributes.style === 'string') {
+              // Parse and merge existing styles, avoiding duplicates
+              const existingStyles = HTMLAttributes.style.split(';').map(s => s.trim()).filter(s => s);
+              existingStyles.forEach(existingStyle => {
+                const prop = existingStyle.split(':')[0].trim();
+                // Only add if not already in our styles array
+                if (!styles.some(s => s.startsWith(prop))) {
+                  styles.push(existingStyle);
+                }
+              });
+            }
+          }
+          
+          if (styles.length > 0) {
+            attrs.style = styles.join('; ');
+          }
+          
+          // Return the proper structure: ['td', attrs, content]
+          // Use 0 to indicate default content rendering (Tiptap will handle content)
+          return ['td', attrs, 0];
+        },
+      }).configure({
+        HTMLAttributes: {
+          class: "border border-gray-300 px-4 py-2",
         },
       }),
     ],
@@ -240,13 +484,15 @@ export default function DocEditor({
       </div>
 
       {/* Toolbar - Sticky at top */}
-      <div className="sticky top-16 z-30 bg-white w-full mb-4 pt-4">
+      <div className="editor-toolbar-wrapper sticky top-16 z-30 bg-white w-full mb-4 pt-4">
         <EditorToolbar editor={editor} />
       </div>
 
       {/* Editor Content */}
-      <div className="flex-1 tiptap-editor w-full">
+      <div className="flex-1 tiptap-editor w-full relative">
         <EditorContent editor={editor} />
+        {editor && <TableBubbleMenu editor={editor} />}
+        {editor && <TableControls editor={editor} />}
       </div>
 
       {/* Slash Command Menu */}

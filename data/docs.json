@@ -124,7 +124,7 @@
           "label": "Macbook Pro",
           "title": "Macbook Pro",
           "description": "M3 Chip",
-          "lastUpdated": "December 24, 2025",
+          "lastUpdated": "December 25, 2025",
           "content": {
             "pages": [
               {
@@ -156,7 +156,31 @@
                       "<p>E</p>",
                       "<pre class=\"bg-gray-100 rounded-md p-4 my-4\"><code class=\"block\"></code></pre>",
                       "<hr />",
+                      "<p></p>",
+                      "<table class=\"border-collapse w-full my-4\"><tr><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\"><p>1`</p></th><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\"><p>wdq</p></th><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\"><p>dqw</p></th></tr><tr><td class=\"border border-gray-300 px-4 py-2\"><p>dwq</p></td><td class=\"border border-gray-300 px-4 py-2\"><p>wdq</p></td><td class=\"border border-gray-300 px-4 py-2\"><p>dqwd</p></td></tr><tr><td class=\"border border-gray-300 px-4 py-2\"><p>dqw</p></td><td class=\"border border-gray-300 px-4 py-2\"><p>dqw</p></td><td class=\"border border-gray-300 px-4 py-2\"><p>qwdd</p></td></tr></table>",
+                      "<p style=\"text-align: right\"></p>",
+                      "<p style=\"text-align: right\"></p>",
                       "<p style=\"text-align: right\"><sub><em>zakir</em></sub><em> Metavision </em><sup><em>Ltd</em></sup></p>"
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "rag",
+                "title": "RAG",
+                "sections": [
+                  {
+                    "id": "rag-content",
+                    "title": "",
+                    "type": "html",
+                    "content": [
+                      "<p>Retrieval Augmented Generation</p>",
+                      "<p></p>",
+                      "<p></p>",
+                      "<table class=\"border-collapse w-full my-4\"><tr><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\" style=\"color: #C2410C !important; text-align: right !important\" data-text-color=\"#C2410C\"><p>serial number</p><p>elnfhq&#039;</p><p>wphigw</p><p>wqgp</p><p>wereee</p></th><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\" style=\"color: #7C3AED !important; text-align: center !important\" data-text-color=\"#7C3AED\"><p>ROLL number</p></th><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\" style=\"color: #C2410C !important\" data-text-color=\"#C2410C\"><p>NAME</p></th></tr><tr><td class=\"border border-gray-300 px-4 py-2\"><p>dfghert</p></td><td class=\"border border-gray-300 px-4 py-2\" style=\"text-align: right !important\"><p>dfgbehbestsvf</p></td><td class=\"border border-gray-300 px-4 py-2\"><p></p></td></tr><tr><td class=\"border border-gray-300 px-4 py-2\"><p></p></td><td class=\"border border-gray-300 px-4 py-2\"><p></p></td><td class=\"border border-gray-300 px-4 py-2\"><p></p></td></tr></table>",
+                      "<p></p>",
+                      "<table class=\"border-collapse w-full my-4\"><tr><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\"><p>name</p></th><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\"><p>email</p></th><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\"><p>role and permissions</p></th></tr><tr><td class=\"border border-gray-300 px-4 py-2\"><p></p></td><td class=\"border border-gray-300 px-4 py-2\"><p></p></td><td class=\"border border-gray-300 px-4 py-2\"><p></p></td></tr><tr><td class=\"border border-gray-300 px-4 py-2\"><p></p></td><td class=\"border border-gray-300 px-4 py-2\"><p></p></td><td class=\"border border-gray-300 px-4 py-2\"><p></p></td></tr></table>",
+                      "<p></p>"
                     ]
                   }
                 ]

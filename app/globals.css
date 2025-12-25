@@ -632,3 +632,149 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
   font-style: italic;
   color: #6b7280;
 }
+
+/* Table styles in editor */
+.ProseMirror table,
+.tiptap-editor .ProseMirror table {
+  border-collapse: collapse !important;
+  table-layout: auto !important;
+  width: 100% !important;
+  margin: 1rem 0 !important;
+  overflow: hidden !important;
+}
+
+.ProseMirror td,
+.ProseMirror th,
+.tiptap-editor .ProseMirror td,
+.tiptap-editor .ProseMirror th {
+  min-width: 1em !important;
+  border: 1px solid #d1d5db !important;
+  padding: 0.5rem 0.75rem !important;
+  vertical-align: top !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  transition: background-color 0.15s ease !important;
+}
+
+/* Prevent text selection from causing bold appearance on click */
+.ProseMirror td::selection,
+.ProseMirror th::selection,
+.tiptap-editor .ProseMirror td::selection,
+.tiptap-editor .ProseMirror th::selection {
+  background-color: transparent !important;
+  color: inherit !important;
+}
+
+/* Allow normal selection for text content inside cells when actually selecting */
+.ProseMirror td *::selection,
+.ProseMirror th *::selection,
+.tiptap-editor .ProseMirror td *::selection,
+.tiptap-editor .ProseMirror th *::selection {
+  background-color: rgba(59, 130, 246, 0.3) !important;
+  color: inherit !important;
+  font-weight: inherit !important;
+}
+
+.ProseMirror td:hover,
+.ProseMirror th:hover,
+.tiptap-editor .ProseMirror td:hover,
+.tiptap-editor .ProseMirror th:hover {
+  background-color: rgba(204, 86, 30, 0.05) !important;
+}
+
+.ProseMirror th,
+.tiptap-editor .ProseMirror th {
+  font-weight: 600 !important;
+  text-align: left !important;
+  background-color: #f3f4f6 !important;
+}
+
+/* Ensure cell colors apply to all content inside */
+.ProseMirror td[style*="color"],
+.ProseMirror th[style*="color"],
+.tiptap-editor .ProseMirror td[style*="color"],
+.tiptap-editor .ProseMirror th[style*="color"] {
+  color: inherit !important;
+}
+
+.ProseMirror td[style*="color"] *,
+.ProseMirror th[style*="color"] *,
+.tiptap-editor .ProseMirror td[style*="color"] *,
+.tiptap-editor .ProseMirror th[style*="color"] * {
+  color: inherit !important;
+}
+
+/* Removed orange selection styling - no visual indication for selected cells */
+.ProseMirror .selectedCell:after,
+.tiptap-editor .ProseMirror .selectedCell:after {
+  display: none !important;
+}
+
+/* Table controls styling */
+.table-controls-wrapper {
+  position: absolute;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.table-controls-wrapper * {
+  pointer-events: auto;
+}
+
+/* Table styles in prose (view mode) */
+.prose table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  margin: 1rem 0 !important;
+}
+
+.prose td,
+.prose th {
+  border: 1px solid #d1d5db !important;
+  padding: 0.5rem 0.75rem !important;
+  text-align: left !important;
+  color: inherit !important; /* Ensure text color is inherited */
+}
+
+/* Only apply default background to th if no inline style is present */
+/* Use attribute selector to check for style attribute with background-color */
+/* This ensures inline styles with background-color take precedence */
+.prose th:not([style*="background-color"]) {
+  background-color: #f3f4f6 !important;
+}
+
+.prose th {
+  font-weight: 600 !important;
+}
+
+/* IMPORTANT: Remove any CSS background-color when inline style is present */
+/* This ensures inline styles (even without !important) take precedence */
+.prose th[style*="background-color"] {
+  /* Don't set background-color here - let inline style win */
+  /* The inline style attribute has highest specificity (1,0,0,0) */
+}
+
+/* CRITICAL: Ensure inline styles take full precedence */
+/* Inline styles have the highest specificity (1,0,0,0) */
+/* But we need to make sure they're not being overridden by CSS rules */
+/* The style attribute should always win, but we'll be explicit */
+.prose td[style*="background-color"],
+.prose th[style*="background-color"] {
+  /* Inline styles should automatically win, but ensure no CSS interference */
+  /* The inline style attribute has highest specificity */
+}
+
+.prose td[style*="color"],
+.prose th[style*="color"] {
+  /* Inline styles should automatically win for color as well */
+}
+
+/* Ensure child elements inherit colors from parent cells */
+.prose td[style*="color"] *,
+.prose th[style*="color"] *,
+.prose td[style*="background-color"] *,
+.prose th[style*="background-color"] * {
+  color: inherit !important;
+}
+
+

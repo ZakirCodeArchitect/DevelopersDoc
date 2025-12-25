@@ -437,7 +437,13 @@ const DocsPageContentComponent = ({
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save content');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.error('Save failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
+        throw new Error(errorData.error || `Failed to save content: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();

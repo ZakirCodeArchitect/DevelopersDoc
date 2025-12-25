@@ -104,6 +104,71 @@ function renderNodeToHTML(node: any): string {
     case 'horizontalRule':
       return '<hr />';
     
+    case 'table':
+      return `<table class="border-collapse w-full my-4">${renderContent(node.content)}</table>`;
+    
+    case 'tableRow':
+      return `<tr>${renderContent(node.content)}</tr>`;
+    
+    case 'tableHeader':
+      const thBgColor = node.attrs?.backgroundColor;
+      const thTxtColor = node.attrs?.textColor;
+      const thTxtAlign = node.attrs?.textAlign || 'left';
+      const thVAlign = node.attrs?.verticalAlign || 'top';
+      
+      let thStyle = '';
+      const thStyleParts: string[] = [];
+      
+      // Default background color for headers, but allow override
+      if (thBgColor) {
+        thStyleParts.push(`background-color: ${thBgColor} !important`);
+      }
+      if (thTxtColor) {
+        thStyleParts.push(`color: ${thTxtColor} !important`);
+      }
+      if (thTxtAlign && thTxtAlign !== 'left') {
+        thStyleParts.push(`text-align: ${thTxtAlign} !important`);
+      }
+      if (thVAlign && thVAlign !== 'top') {
+        thStyleParts.push(`vertical-align: ${thVAlign} !important`);
+      }
+      
+      if (thStyleParts.length > 0) {
+        thStyle = ` style="${thStyleParts.join('; ')}"`;
+      }
+      
+      // Add data attributes for parsing back
+      let thDataAttrs = '';
+      if (thBgColor) thDataAttrs += ` data-background-color="${thBgColor}"`;
+      if (thTxtColor) thDataAttrs += ` data-text-color="${thTxtColor}"`;
+      
+      return `<th class="border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold"${thStyle}${thDataAttrs}>${renderContent(node.content)}</th>`;
+    
+    case 'tableCell':
+      const bgColor = node.attrs?.backgroundColor;
+      const txtColor = node.attrs?.textColor;
+      const txtAlign = node.attrs?.textAlign || 'left';
+      const vAlign = node.attrs?.verticalAlign || 'top';
+      
+      let cellStyle = '';
+      const styleparts: string[] = [];
+      
+      if (bgColor) styleparts.push(`background-color: ${bgColor} !important`);
+      if (txtColor) styleparts.push(`color: ${txtColor} !important`);
+      if (txtAlign && txtAlign !== 'left') styleparts.push(`text-align: ${txtAlign} !important`);
+      if (vAlign && vAlign !== 'top') styleparts.push(`vertical-align: ${vAlign} !important`);
+      
+      if (styleparts.length > 0) {
+        cellStyle = ` style="${styleparts.join('; ')}"`;
+      }
+      
+      // Add data attributes for parsing back
+      let cellDataAttrs = '';
+      if (bgColor) cellDataAttrs += ` data-background-color="${bgColor}"`;
+      if (txtColor) cellDataAttrs += ` data-text-color="${txtColor}"`;
+      
+      return `<td class="border border-gray-300 px-4 py-2"${cellStyle}${cellDataAttrs}>${renderContent(node.content)}</td>`;
+    
     default:
       return renderContent(node.content);
   }
@@ -239,24 +304,26 @@ export async function PATCH(
       }
 
       const docContent = doc.content as any;
+      // Initialize pages array if it doesn't exist
       if (!docContent.pages) {
-        return NextResponse.json(
-          { error: 'Document has no pages' },
-          { status: 404 }
-        );
+        docContent.pages = [];
       }
 
-      const page = docContent.pages.find((p: any) => p.id === pageId);
+      let page = docContent.pages.find((p: any) => p.id === pageId);
+      
+      // Create page if it doesn't exist
       if (!page) {
-        return NextResponse.json(
-          { error: 'Page not found' },
-          { status: 404 }
-        );
+        page = {
+          id: pageId,
+          title: title,
+          sections: sections,
+        };
+        docContent.pages.push(page);
+      } else {
+        // Update existing page title and sections
+        page.title = title;
+        page.sections = sections;
       }
-
-      // Update page title and sections
-      page.title = title;
-      page.sections = sections;
 
       // Update lastUpdated date
       doc.lastUpdated = new Date().toLocaleDateString('en-US', {
@@ -284,24 +351,26 @@ export async function PATCH(
       }
 
       const docContent = doc.content as any;
+      // Initialize pages array if it doesn't exist
       if (!docContent.pages) {
-        return NextResponse.json(
-          { error: 'Document has no pages' },
-          { status: 404 }
-        );
+        docContent.pages = [];
       }
 
-      const page = docContent.pages.find((p: any) => p.id === pageId);
+      let page = docContent.pages.find((p: any) => p.id === pageId);
+      
+      // Create page if it doesn't exist
       if (!page) {
-        return NextResponse.json(
-          { error: 'Page not found' },
-          { status: 404 }
-        );
+        page = {
+          id: pageId,
+          title: title,
+          sections: sections,
+        };
+        docContent.pages.push(page);
+      } else {
+        // Update existing page title and sections
+        page.title = title;
+        page.sections = sections;
       }
-
-      // Update page title and sections
-      page.title = title;
-      page.sections = sections;
 
       // Update lastUpdated date
       doc.lastUpdated = new Date().toLocaleDateString('en-US', {
@@ -321,8 +390,9 @@ export async function PATCH(
     }
   } catch (error) {
     console.error('Error updating page:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { error: 'Failed to update page' },
+      { error: `Failed to update page: ${errorMessage}` },
       { status: 500 }
     );
   }

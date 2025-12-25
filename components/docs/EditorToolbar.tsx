@@ -98,7 +98,7 @@ export function EditorToolbar({ editor }: { editor: Editor | null }) {
   };
 
   return (
-    <div className="sticky top-0 z-10 bg-white border border-gray-200 rounded-lg shadow-sm w-full">
+    <div className="editor-toolbar sticky top-0 z-10 bg-white border border-gray-200 rounded-lg shadow-sm w-full">
       <div className="flex items-center gap-1 p-3 flex-wrap relative w-full">
         {/* Undo/Redo */}
         <button
