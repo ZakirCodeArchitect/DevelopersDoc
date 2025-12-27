@@ -646,8 +646,34 @@ const DocsPageContentComponent = ({
     }
   }, [page, document, projectId]);
 
+  // Helper function to check if a page is empty
+  const isPageEmpty = useMemo(() => {
+    if (!page || page.sections.length === 0) return true;
+    
+    // Check if all sections are empty
+    return page.sections.every((section) => {
+      if (!Array.isArray(section.content)) return true;
+      
+      if (section.type === 'html') {
+        const html = section.content.join('');
+        // Remove HTML tags and check if there's any meaningful content
+        const textContent = html.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+        return textContent.length === 0;
+      }
+      
+      if (section.type === 'text') {
+        return section.content.every((p: string) => !p || p.trim().length === 0);
+      }
+      
+      return true;
+    });
+  }, [page]);
+
   // Handle pages - if currentPage is a ProcessedPage, render it
   if (isPageView && page && document) {
+    // Hide title if page is empty and title is "Untitled page"
+    const shouldHideTitle = isEditing || (isPageEmpty && (page.title === 'Untitled page' || !page.title));
+    
     return (
       <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]">
         <DocContent
@@ -655,7 +681,7 @@ const DocsPageContentComponent = ({
           lastUpdated={document.lastUpdated}
           previous={page.navigation.previous || undefined}
           next={page.navigation.next || undefined}
-          hideTitle={isEditing}
+          hideTitle={shouldHideTitle}
           fullWidth={isEditing}
         >
           {/* Show editor or content based on editing state */}
@@ -667,94 +693,142 @@ const DocsPageContentComponent = ({
             />
           ) : (
             <>
-              {/* Render page description (first section without title) above border */}
-              {page.sections.length > 0 && !page.sections[0].title && (
-                <div className="page-description-wrapper pb-5 border-b border-gray-200 mb-8">
-                  {page.sections[0].type === 'html' && Array.isArray(page.sections[0].content) && (
-                    <div 
-                      className="prose prose-gray max-w-none preserve-whitespace"
-                      dangerouslySetInnerHTML={{ 
-                        __html: (() => {
-                          const html = page.sections[0].content.join('');
-                          // DEBUG: Log HTML content being rendered
-                          if (html.includes('&nbsp;') || html.match(/ {2,}/)) {
-                            console.log('[DEBUG DocsPageContent] Rendering description HTML:', {
-                              htmlPreview: html.substring(0, 300),
-                              containsNbsp: html.includes('&nbsp;'),
-                              containsMultipleSpaces: / {2,}/.test(html),
-                              htmlLength: html.length
-                            });
-                          }
-                          return html;
-                        })()
-                      }}
+              {/* Show empty state placeholder if page is empty */}
+              {isPageEmpty ? (
+                <div className="text-center py-16 px-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <svg
+                    className="w-16 h-16 text-gray-400 mx-auto mb-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                     />
-                  )}
-                  {page.sections[0].type === 'text' && Array.isArray(page.sections[0].content) && (
-                    <div>
-                      {page.sections[0].content.map((paragraph: string, idx: number) => (
-                        <p key={idx} className="text-gray-700 mb-4">
-                          {paragraph}
-                        </p>
-                      ))}
+                  </svg>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    {page.title === 'Untitled page' || !page.title ? 'Start writing your page' : 'Add content to your page'}
+                  </h3>
+                  <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                    {page.title === 'Untitled page' || !page.title 
+                      ? 'Add a title and description to get started. You can start writing your documentation content right away.'
+                      : 'Click "Edit this page" to add a description and content to your page.'}
+                  </p>
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors font-medium shadow-sm hover:shadow-md"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                    {page.title === 'Untitled page' || !page.title ? 'Start writing documentation' : 'Edit this page'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Render page description (first section without title) above border */}
+                  {page.sections.length > 0 && !page.sections[0].title && (
+                    <div className="page-description-wrapper pb-5 border-b border-gray-200 mb-8">
+                      {page.sections[0].type === 'html' && Array.isArray(page.sections[0].content) && (
+                        <div 
+                          className="prose prose-gray max-w-none preserve-whitespace"
+                          dangerouslySetInnerHTML={{ 
+                            __html: (() => {
+                              const html = page.sections[0].content.join('');
+                              // DEBUG: Log HTML content being rendered
+                              if (html.includes('&nbsp;') || html.match(/ {2,}/)) {
+                                console.log('[DEBUG DocsPageContent] Rendering description HTML:', {
+                                  htmlPreview: html.substring(0, 300),
+                                  containsNbsp: html.includes('&nbsp;'),
+                                  containsMultipleSpaces: / {2,}/.test(html),
+                                  htmlLength: html.length
+                                });
+                              }
+                              return html;
+                            })()
+                          }}
+                        />
+                      )}
+                      {page.sections[0].type === 'text' && Array.isArray(page.sections[0].content) && (
+                        <div>
+                          {page.sections[0].content.map((paragraph: string, idx: number) => (
+                            <p key={idx} className="text-gray-700 mb-4">
+                              {paragraph}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+
+                  {/* Render rest of the sections */}
+                  {page.sections.map((section, index) => {
+                    // Skip first section if it's the description (no title)
+                    if (index === 0 && !section.title) {
+                      return null;
+                    }
+
+                    return (
+                      <section key={section.id} id={section.id} className="mt-8">
+                        {/* Only render title if it exists */}
+                        {section.title && (
+                          <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.title}</h2>
+                        )}
+                        {section.type === 'html' && Array.isArray(section.content) && (
+                          <div 
+                            className="prose prose-gray max-w-none preserve-whitespace"
+                            dangerouslySetInnerHTML={{ 
+                              __html: (() => {
+                                // Join all content, preserving empty paragraphs for spacing
+                                const html = section.content.join('');
+                                // DEBUG: Log HTML content being rendered
+                                if (html.includes('&nbsp;') || html.match(/ {2,}/) || html.includes('<p></p>')) {
+                                  console.log('[DEBUG DocsPageContent] Rendering HTML section:', {
+                                    sectionId: section.id,
+                                    htmlPreview: html.substring(0, 300),
+                                    containsNbsp: html.includes('&nbsp;'),
+                                    containsMultipleSpaces: / {2,}/.test(html),
+                                    containsEmptyParagraphs: html.includes('<p></p>'),
+                                    htmlLength: html.length
+                                  });
+                                }
+                                return html;
+                              })()
+                            }}
+                          />
+                        )}
+                        {section.type === 'text' && Array.isArray(section.content) && (
+                          <div>
+                            {section.content.map((paragraph: string, idx: number) => (
+                              <p key={idx} className="text-gray-700 mb-4">
+                                {paragraph}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+                        {section.type === 'component' && section.componentType === 'InteractiveButton' && (
+                          <div className="mt-4">
+                            <InteractiveButton />
+                          </div>
+                        )}
+                      </section>
+                    );
+                  })}
+                </>
               )}
-
-              {/* Render rest of the sections */}
-              {page.sections.map((section, index) => {
-                // Skip first section if it's the description (no title)
-                if (index === 0 && !section.title) {
-                  return null;
-                }
-
-                return (
-                  <section key={section.id} id={section.id} className="mt-8">
-                    {/* Only render title if it exists */}
-                    {section.title && (
-                      <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.title}</h2>
-                    )}
-                    {section.type === 'html' && Array.isArray(section.content) && (
-                      <div 
-                        className="prose prose-gray max-w-none preserve-whitespace"
-                        dangerouslySetInnerHTML={{ 
-                          __html: (() => {
-                            // Join all content, preserving empty paragraphs for spacing
-                            const html = section.content.join('');
-                            // DEBUG: Log HTML content being rendered
-                            if (html.includes('&nbsp;') || html.match(/ {2,}/) || html.includes('<p></p>')) {
-                              console.log('[DEBUG DocsPageContent] Rendering HTML section:', {
-                                sectionId: section.id,
-                                htmlPreview: html.substring(0, 300),
-                                containsNbsp: html.includes('&nbsp;'),
-                                containsMultipleSpaces: / {2,}/.test(html),
-                                containsEmptyParagraphs: html.includes('<p></p>'),
-                                htmlLength: html.length
-                              });
-                            }
-                            return html;
-                          })()
-                        }}
-                      />
-                    )}
-                    {section.type === 'text' && Array.isArray(section.content) && (
-                      <div>
-                        {section.content.map((paragraph: string, idx: number) => (
-                          <p key={idx} className="text-gray-700 mb-4">
-                            {paragraph}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                    {section.type === 'component' && section.componentType === 'InteractiveButton' && (
-                      <div className="mt-4">
-                        <InteractiveButton />
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
             </>
           )}
         </DocContent>

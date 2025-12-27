@@ -12,6 +12,7 @@ import {
 } from '@/lib/docs';
 import docsDataRaw from '@/data/docs.json';
 import { DocsPageContent } from '@/components/docs/DocsPageContent';
+import { DocsLandingPage } from '@/components/docs/DocsLandingPage';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
 
@@ -45,9 +46,14 @@ export default async function DocsPage({ params }: DocsPageProps) {
   // Find the current page
   let currentPage = findDocumentByPath(currentPath, processedProjects, processedYourDocs);
 
-  // If navigating to /docs and no page found, redirect to first project
-  if (!currentPage && currentPath === '/docs' && processedProjects.length > 0) {
-    redirect(processedProjects[0].href);
+  // If navigating to /docs and no page found, show landing page
+  if (!currentPage && currentPath === '/docs') {
+    return (
+      <DocsLandingPage
+        processedProjects={processedProjects}
+        processedYourDocs={processedYourDocs}
+      />
+    );
   }
 
   // If accessing a document directly (not a page), redirect to first page

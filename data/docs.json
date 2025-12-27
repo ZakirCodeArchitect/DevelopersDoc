@@ -1,137 +1,68 @@
 {
   "projects": [
     {
-      "id": "haraik",
+      "id": "haraik-global",
       "label": "HarAik Global",
       "title": "HarAik Global",
-      "description": "This is an audit finance company registered in Saudia",
-      "lastUpdated": "December 20, 2025",
-      "documents": [
-        {
-          "id": "ai-engineer",
-          "label": "AI Engineer",
-          "title": "AI Engineer",
-          "description": "M3 Chip",
-          "lastUpdated": "December 27, 2025",
-          "content": {
-            "pages": [
-              {
-                "id": "untitled-page",
-                "title": "Macbook User manual",
-                "sections": [
-                  {
-                    "id": "untitled-page-content",
-                    "title": "",
-                    "type": "html",
-                    "content": [
-                      "<p>Keychain permission guide</p>",
-                      "<h3 style=\"text-align: center\"><u><strong>24-dec-2025 Tasks</strong></u></h3>",
-                      "<p style=\"text-align: center\"><em>zakir matloob</em></p>",
-                      "<ol><li><p>open settings</p></li><li><p>click security</p></li><li><p>open keychain access</p></li><li><p>enter your macbook password or your set fingerprint.</p></li></ol>",
-                      "<p><em>Be carefull do not set any wrong or corrupt private key.</em></p>",
-                      "<p><mark data-color=\"#bfdbfe\" style=\"background-color: #bfdbfe\"><strong>It could harm your macbook.</strong></mark></p>",
-                      "<ul data-type=\"taskList\"><li data-type=\"taskItem\" data-checked=\"false\"><label><input type=\"checkbox\" ><span><p>Create a document of all the private keys.</p></span></label></li></ul>",
-                      "<p>configured all the public keys in the OCI.</p>",
-                      "<p><code class=\"bg-gray-100 px-1 py-0.5 rounded text-sm\">cout&lt;&lt;&quot;Hello&quot;;</code></p>",
-                      "<p><em><a href=\"wwww\" class=\"text-blue-600 underline hover:text-blue-800\">www.haengagepro.com</a></em></p>",
-                      "<pre class=\"bg-gray-100 rounded-md p-4 my-4\"><code class=\"block\">print.f(zakir);</code></pre>",
-                      "<p></p>",
-                      "<p>SDBG</p>",
-                      "<p>ERWHB</p>",
-                      "<p>B</p>",
-                      "<p>ERG</p>",
-                      "<p>ER</p>",
-                      "<p>E</p>",
-                      "<pre class=\"bg-gray-100 rounded-md p-4 my-4\"><code class=\"block\"></code></pre>",
-                      "<hr />",
-                      "<p></p>",
-                      "<table class=\"border-collapse w-full my-4\"><tr><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\"><p>1`</p></th><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\"><p>wdq</p></th><th class=\"border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold\"><p>dqw</p></th></tr><tr><td class=\"border border-gray-300 px-4 py-2\"><p>dwq</p></td><td class=\"border border-gray-300 px-4 py-2\"><p>wdq</p></td><td class=\"border border-gray-300 px-4 py-2\"><p>dqwd</p></td></tr><tr><td class=\"border border-gray-300 px-4 py-2\"><p>dqw</p></td><td class=\"border border-gray-300 px-4 py-2\"><p>dqw</p></td><td class=\"border border-gray-300 px-4 py-2\"><p>qwdd</p></td></tr></table>",
-                      "<p style=\"text-align: right\"></p>",
-                      "<p style=\"text-align: right\"></p>",
-                      "<p style=\"text-align: right\"><sub><em>zakir</em></sub><em> Metavision </em><sup><em>Ltd</em></sup></p>"
-                    ]
-                  }
-                ]
-              },
-              {
-                "id": "rag",
-                "title": "RAG pipeline using LangChain",
-                "sections": [
-                  {
-                    "id": "rag-intro",
-                    "title": "",
-                    "type": "html",
-                    "content": [
-                      "<p>Retrival Augmeneted Generation</p>"
-                    ]
-                  },
-                  {
-                    "id": "rag-section-1",
-                    "title": "",
-                    "type": "html",
-                    "content": [
-                      "<p>One of the most powerful applications enabled by LLMs is sophisticated question-answering (Q&amp;A) chatbots. These are applications that can answer questions about specific source information. These applications use a technique known as Retrieval Augmented Generation, or <strong><a href=\"https://docs.langchain.com/oss/python/langchain/retrieval\" class=\"text-blue-600 underline hover:text-blue-800\">RAG</a></strong>.</p>",
-                      "<p></p>",
-                      "<p>This tutorial will show how to build a simple Q&amp;A application over an unstructured text data source. We will demonstrate:</p>",
-                      "<ol><li><p>A RAG <strong><a href=\"https://docs.langchain.com/oss/python/langchain/rag#rag-agents\" class=\"text-blue-600 underline hover:text-blue-800\">agent</a></strong> that executes searches with a simple tool. This is a good general-purpose implementation.</p></li><li><p>A two-step RAG <strong><a href=\"https://docs.langchain.com/oss/python/langchain/rag#rag-chains\" class=\"text-blue-600 underline hover:text-blue-800\">chain</a></strong> that uses just a single LLM call per query. This is a fast and effective method for simple queries.</p></li></ol>",
-                      "<p></p>",
-                      "<hr />",
-                      "<h3><strong>Concepts</strong></h3>",
-                      "<p>We will cover the following concepts:</p>",
-                      "<ul><li><p><strong>Indexing</strong>: a pipeline for ingesting data from a source and indexing it. <em>This usually happens in a separate process.</em></p></li><li><p><strong>Retrieval and generation</strong>: the actual RAG process, which takes the user query at run time and retrieves the relevant data from the index, then passes that to the model.</p></li></ul>",
-                      "<p>Once we’ve indexed our data, we will use an <strong><a href=\"https://docs.langchain.com/oss/python/langchain/agents\" class=\"text-blue-600 underline hover:text-blue-800\">agent</a></strong> as our orchestration framework to implement the retrieval and generation steps.</p>",
-                      "<p></p>",
-                      "<p></p>",
-                      "<p></p>"
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "id": "llm",
-          "label": "LLM",
-          "title": "LLM",
-          "description": "Large Language Models",
-          "lastUpdated": "December 27, 2025",
-          "content": {
-            "pages": [
-              {
-                "id": "untitled-page",
-                "title": "Untitled page",
-                "sections": [
-                  {
-                    "id": "untitled-page-content",
-                    "title": "",
-                    "type": "html",
-                    "content": [
-                      "<p></p>"
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      ]
+      "description": "Audit firm",
+      "lastUpdated": "December 27, 2025",
+      "documents": []
     }
   ],
   "yourDocs": [
     {
-      "id": "testing-version",
-      "label": "testing Version",
-      "title": "testing Version",
-      "lastUpdated": "December 21, 2025",
+      "id": "payment-integration",
+      "label": "Payment integration",
+      "title": "Payment integration",
+      "description": "Stripe payment gateway",
+      "lastUpdated": "December 28, 2025",
       "content": {
-        "sections": [
+        "pages": [
           {
-            "id": "overview",
-            "title": "Overview",
-            "type": "text",
-            "content": [
-              "efe"
+            "id": "untitled-page",
+            "title": "Idempotency implementation",
+            "sections": [
+              {
+                "id": "untitled-page-intro",
+                "title": "",
+                "type": "html",
+                "content": [
+                  "<p>to aviod duplicate payment</p>"
+                ]
+              },
+              {
+                "id": "untitled-page-section-1",
+                "title": "",
+                "type": "html",
+                "content": [
+                  "<p></p>"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "app-router-implementation",
+      "label": "app router implementation",
+      "title": "app router implementation",
+      "description": "nextjs App router implementation with middleware",
+      "lastUpdated": "December 28, 2025",
+      "content": {
+        "pages": [
+          {
+            "id": "untitled-page",
+            "title": "Untitled page",
+            "sections": [
+              {
+                "id": "untitled-page-content",
+                "title": "",
+                "type": "html",
+                "content": [
+                  "<p></p>"
+                ]
+              }
             ]
           }
         ]
