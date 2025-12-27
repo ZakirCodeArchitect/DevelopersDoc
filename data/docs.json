@@ -124,7 +124,7 @@
           "label": "Macbook Pro",
           "title": "Macbook Pro",
           "description": "M3 Chip",
-          "lastUpdated": "December 25, 2025",
+          "lastUpdated": "December 27, 2025",
           "content": {
             "pages": [
               {
@@ -167,14 +167,14 @@
               },
               {
                 "id": "rag",
-                "title": "RAG",
+                "title": "RAG pipeline using LangChain",
                 "sections": [
                   {
                     "id": "rag-intro",
                     "title": "",
                     "type": "html",
                     "content": [
-                      "<p>Retrieval Augmented Generation</p>"
+                      "<p>Retrival Augmeneted Generation</p>"
                     ]
                   },
                   {
@@ -182,8 +182,19 @@
                     "title": "",
                     "type": "html",
                     "content": [
-                      "<p>d&#039;svj]d</p>",
-                      "<p>DVRWV ASDVS S</p>"
+                      "<p>One of the most powerful applications enabled by LLMs is sophisticated question-answering (Q&amp;A) chatbots. These are applications that can answer questions about specific source information. These applications use a technique known as Retrieval Augmented Generation, or <strong><a href=\"https://docs.langchain.com/oss/python/langchain/retrieval\" class=\"text-blue-600 underline hover:text-blue-800\">RAG</a></strong>.</p>",
+                      "<p></p>",
+                      "<p>This tutorial will show how to build a simple Q&amp;A application over an unstructured text data source. We will demonstrate:</p>",
+                      "<ol><li><p>A RAG <strong><a href=\"https://docs.langchain.com/oss/python/langchain/rag#rag-agents\" class=\"text-blue-600 underline hover:text-blue-800\">agent</a></strong> that executes searches with a simple tool. This is a good general-purpose implementation.</p></li><li><p>A two-step RAG <strong><a href=\"https://docs.langchain.com/oss/python/langchain/rag#rag-chains\" class=\"text-blue-600 underline hover:text-blue-800\">chain</a></strong> that uses just a single LLM call per query. This is a fast and effective method for simple queries.</p></li></ol>",
+                      "<p></p>",
+                      "<hr />",
+                      "<h3><strong>Concepts</strong></h3>",
+                      "<p>We will cover the following concepts:</p>",
+                      "<ul><li><p><strong>Indexing</strong>: a pipeline for ingesting data from a source and indexing it. <em>This usually happens in a separate process.</em></p></li><li><p><strong>Retrieval and generation</strong>: the actual RAG process, which takes the user query at run time and retrieves the relevant data from the index, then passes that to the model.</p></li></ul>",
+                      "<p>Once we’ve indexed our data, we will use an <strong><a href=\"https://docs.langchain.com/oss/python/langchain/agents\" class=\"text-blue-600 underline hover:text-blue-800\">agent</a></strong> as our orchestration framework to implement the retrieval and generation steps.</p>",
+                      "<p></p>",
+                      "<p></p>",
+                      "<p></p>"
                     ]
                   }
                 ]

@@ -8,6 +8,7 @@ import type { NavLink } from './DocNavigation';
 import type { ProcessedDocument, ProcessedProject, ProcessedYourDoc, ProcessedPage } from '@/lib/docs';
 import { isProject, isProjectDocument, isPage, getDocumentForPage } from '@/lib/docs';
 import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useCreateDoc } from './CreateDocHandler';
 import { useAddPage } from './AddPageHandler';
 import dynamic from 'next/dynamic';
@@ -62,15 +63,16 @@ const convertPageToHTML = (page: ProcessedPage) => {
     // Add section content
     if (section.type === 'html' && Array.isArray(section.content)) {
       section.content.forEach((htmlContent: string) => {
-        if (htmlContent.trim()) {
+        // Preserve all HTML content, including empty paragraphs (<p></p>) for spacing
+        // Include if it has content after trimming OR if it contains HTML tags (like <p></p>)
+        if (htmlContent.trim() || htmlContent.match(/<[^>]+>/)) {
           html += htmlContent;
         }
       });
     } else if (section.type === 'text' && Array.isArray(section.content)) {
       section.content.forEach((paragraph: string) => {
-        if (paragraph.trim()) {
-          html += `<p>${paragraph}</p>`;
-        }
+        // Always include paragraphs, even if empty, to preserve spacing
+        html += `<p>${paragraph}</p>`;
       });
     }
   });
@@ -93,8 +95,11 @@ const DocsPageContentComponent = ({
 }: DocsPageContentProps) => {
   const [activeTocId, setActiveTocId] = useState<string | undefined>();
   const [isEditing, setIsEditing] = useState(false);
+  const [optimisticPage, setOptimisticPage] = useState<ProcessedPage | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const elementsRef = useRef<HTMLElement[]>([]);
+  const router = useRouter();
+  const isSavingRef = useRef(false);
   const { handleCreateDoc, CreateDocModal } = useCreateDoc();
   const { handleAddPage, AddPageModal } = useAddPage();
 
@@ -314,8 +319,43 @@ const DocsPageContentComponent = ({
 
   // Determine if we're viewing a page, document, or project
   const isPageView = isPage(currentPage);
-  const page = isPageView ? currentPage : null;
+  const basePage = isPageView ? currentPage : null;
+  // Use optimistic page if available, otherwise use the base page
+  const page = optimisticPage || basePage;
   const document = isPageView && page ? getDocumentForPage(page, processedProjects, processedYourDocs) : null;
+
+  // Debug: Log when optimistic page is being used
+  useEffect(() => {
+    if (optimisticPage) {
+      console.log('✅ [Optimistic Update] Using optimistic page:', optimisticPage.id, optimisticPage.title);
+    }
+  }, [optimisticPage]);
+
+  // Clear optimistic page when server data is refreshed and matches
+  // Only clear if the sections actually match (server has caught up)
+  useEffect(() => {
+    // Don't clear if we're currently saving
+    if (isSavingRef.current) return;
+    
+    if (optimisticPage && basePage && optimisticPage.id === basePage.id) {
+      // Check if server data has the same sections (meaning it's been updated)
+      const serverSectionsMatch = JSON.stringify(basePage.sections) === JSON.stringify(optimisticPage.sections);
+      
+      if (serverSectionsMatch) {
+        // Server data has caught up, clear optimistic state after a delay
+        // This ensures smooth transition from optimistic to server data
+        const timeoutId = setTimeout(() => {
+          setOptimisticPage(null);
+        }, 300);
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [basePage, optimisticPage]);
+
+  // Clear optimistic page when path changes (user navigates away)
+  useEffect(() => {
+    setOptimisticPage(null);
+  }, [currentPath]);
 
   // Get TOC items - either from page or empty
   const tocItems: TocItem[] = useMemo(() => {
@@ -324,6 +364,56 @@ const DocsPageContentComponent = ({
     }
     return [];
   }, [page]);
+
+  // DEBUG: Check rendered DOM for whitespace issues
+  useEffect(() => {
+    if (isEditing || !page) return;
+    
+    // Only run in browser environment
+    // Note: Use window.document because local 'document' variable shadows global document
+    if (typeof window === 'undefined' || !window.document) return;
+    if (!window.document.querySelectorAll || typeof window.document.querySelectorAll !== 'function') return;
+    
+    setTimeout(() => {
+      try {
+        const domDocument = window.document;
+        const proseElements = domDocument.querySelectorAll('.prose, .preserve-whitespace');
+        console.log('[DEBUG DOM Check] Found', proseElements.length, 'prose elements');
+        
+        proseElements.forEach((el, idx) => {
+          const paragraphs = el.querySelectorAll('p');
+          console.log(`[DEBUG DOM Check] Element ${idx} has ${paragraphs.length} paragraphs`);
+          
+          paragraphs.forEach((p, pIdx) => {
+            const text = p.textContent || '';
+            const html = p.innerHTML;
+            const hasMultipleSpaces = / {2,}/.test(text);
+            const hasNbsp = html.includes('&nbsp;');
+            const computedStyle = window.getComputedStyle(p);
+            const whiteSpace = computedStyle.whiteSpace;
+            const spaceCount = (text.match(/ /g) || []).length;
+            const nbspCount = (html.match(/&nbsp;/g) || []).length;
+            
+            // Log ALL paragraphs, not just those with multiple spaces
+            console.log(`[DEBUG DOM Check] Paragraph ${idx}-${pIdx}:`, {
+              text: JSON.stringify(text),
+              textLength: text.length,
+              html: html,
+              htmlLength: html.length,
+              hasMultipleSpaces,
+              hasNbsp,
+              whiteSpace,
+              spaceCount,
+              nbspCount,
+              rawHTML: p.outerHTML.substring(0, 300)
+            });
+          });
+        });
+      } catch (error) {
+        console.error('[DEBUG DOM Check] Error:', error);
+      }
+    }, 1000);
+  }, [page, isEditing, currentPath]);
 
   // Get project info if it's a project document
   const { projectId, projectName } = useMemo(() => {
@@ -420,7 +510,39 @@ const DocsPageContentComponent = ({
 
   // Handle save for editor
   const handleSaveContent = useCallback(async (content: any) => {
-    if (!page || !document) return;
+    console.log('🔵 [DEBUG handleSaveContent] SAVE BUTTON CLICKED - Starting save process');
+    console.log('🔵 [DEBUG handleSaveContent] Page:', page?.id);
+    console.log('🔵 [DEBUG handleSaveContent] Document:', document?.id);
+    
+    if (!page || !document) {
+      console.error('❌ [DEBUG handleSaveContent] Missing page or document!', { page, document });
+      return;
+    }
+
+    // DEBUG: Log TipTap JSON content before saving
+    console.log('🔵 [DEBUG handleSaveContent] TipTap JSON content:', JSON.stringify(content, null, 2));
+    
+    // DEBUG: Extract and log ALL text nodes to see what TipTap is sending
+    const findTextNodes = (node: any, path: string = ''): void => {
+      if (node.type === 'text' && node.text) {
+        // Log ALL text nodes, not just those with multiple spaces
+        console.log(`[DEBUG handleSaveContent] Text node at ${path}:`, {
+          text: JSON.stringify(node.text),
+          textLength: node.text.length,
+          spaceCount: (node.text.match(/ /g) || []).length,
+          hasMultipleSpaces: node.text.includes('  '),
+          multipleSpaces: node.text.match(/ {2,}/g),
+          rawText: node.text
+        });
+      }
+      if (node.content && Array.isArray(node.content)) {
+        node.content.forEach((child: any, idx: number) => {
+          findTextNodes(child, `${path}/${node.type}[${idx}]`);
+        });
+      }
+    };
+    console.log('[DEBUG handleSaveContent] Full content structure:', content);
+    findTextNodes({ type: 'doc', content: content.content || [] }, 'doc');
 
     try {
       const apiUrl = `/api/docs/${document.id}/pages/${page.id}`;
@@ -447,10 +569,51 @@ const DocsPageContentComponent = ({
       }
 
       const data = await response.json();
+      console.log('✅ [DEBUG handleSaveContent] Save successful! Response:', data);
       
-      // Close editor and reload page to show updated content
-      setIsEditing(false);
-      window.location.reload();
+      // Convert API response to ProcessedPage format for optimistic update
+      if (data.page && page) {
+        // Generate TOC from sections
+        const toc: TocItem[] = (data.page.sections || []).map((section: any) => ({
+          id: section.id,
+          label: section.title || '',
+          level: 1,
+        }));
+
+        // Create optimistic page with updated data, preserving all required properties
+        const updatedPage: ProcessedPage = {
+          ...page, // Preserves href, navigation, and other properties
+          id: page.id,
+          title: data.page.title || page.title,
+          sections: data.page.sections || page.sections,
+          toc,
+          href: page.href, // Ensure href is preserved
+          navigation: page.navigation, // Ensure navigation is preserved
+        };
+
+        // Mark that we're saving to prevent premature clearing
+        isSavingRef.current = true;
+
+        // Set optimistic page FIRST - this will trigger a re-render
+        setOptimisticPage(updatedPage);
+        
+        // Close editor immediately - React will batch these updates
+        setIsEditing(false);
+        
+        // Use requestAnimationFrame to ensure the optimistic update renders first
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // Now refresh server data in the background
+            // The optimistic content should already be visible
+            router.refresh();
+            isSavingRef.current = false;
+          });
+        });
+      } else {
+        // If no page data, just close editor and refresh
+        setIsEditing(false);
+        router.refresh();
+      }
     } catch (error) {
       console.error('Error saving content:', error);
       alert('Failed to save content. Please try again.');
@@ -483,8 +646,22 @@ const DocsPageContentComponent = ({
                 <div className="page-description-wrapper pb-5 border-b border-gray-200 mb-8">
                   {page.sections[0].type === 'html' && Array.isArray(page.sections[0].content) && (
                     <div 
-                      className="prose prose-gray max-w-none"
-                      dangerouslySetInnerHTML={{ __html: page.sections[0].content.join('') }}
+                      className="prose prose-gray max-w-none preserve-whitespace"
+                      dangerouslySetInnerHTML={{ 
+                        __html: (() => {
+                          const html = page.sections[0].content.join('');
+                          // DEBUG: Log HTML content being rendered
+                          if (html.includes('&nbsp;') || html.match(/ {2,}/)) {
+                            console.log('[DEBUG DocsPageContent] Rendering description HTML:', {
+                              htmlPreview: html.substring(0, 300),
+                              containsNbsp: html.includes('&nbsp;'),
+                              containsMultipleSpaces: / {2,}/.test(html),
+                              htmlLength: html.length
+                            });
+                          }
+                          return html;
+                        })()
+                      }}
                     />
                   )}
                   {page.sections[0].type === 'text' && Array.isArray(page.sections[0].content) && (
@@ -514,8 +691,25 @@ const DocsPageContentComponent = ({
                     )}
                     {section.type === 'html' && Array.isArray(section.content) && (
                       <div 
-                        className="prose prose-gray max-w-none"
-                        dangerouslySetInnerHTML={{ __html: section.content.join('') }}
+                        className="prose prose-gray max-w-none preserve-whitespace"
+                        dangerouslySetInnerHTML={{ 
+                          __html: (() => {
+                            // Join all content, preserving empty paragraphs for spacing
+                            const html = section.content.join('');
+                            // DEBUG: Log HTML content being rendered
+                            if (html.includes('&nbsp;') || html.match(/ {2,}/) || html.includes('<p></p>')) {
+                              console.log('[DEBUG DocsPageContent] Rendering HTML section:', {
+                                sectionId: section.id,
+                                htmlPreview: html.substring(0, 300),
+                                containsNbsp: html.includes('&nbsp;'),
+                                containsMultipleSpaces: / {2,}/.test(html),
+                                containsEmptyParagraphs: html.includes('<p></p>'),
+                                htmlLength: html.length
+                              });
+                            }
+                            return html;
+                          })()
+                        }}
                       />
                     )}
                     {section.type === 'text' && Array.isArray(section.content) && (

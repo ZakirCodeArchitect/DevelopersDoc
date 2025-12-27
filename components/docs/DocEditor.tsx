@@ -18,7 +18,72 @@ import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { Extension } from "@tiptap/core";
+import { Plugin } from "@tiptap/pm/state";
 import { useState, useEffect, useRef } from "react";
+
+// Custom extension to preserve multiple spaces
+const PreserveSpaces = Extension.create({
+  name: 'preserveSpaces',
+  
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          handleTextInput: (view: any, from: number, to: number, text: string) => {
+            console.log('🟢 [DEBUG PreserveSpaces] handleTextInput:', {
+              text: JSON.stringify(text),
+              hasMultipleSpaces: text.includes('  ')
+            });
+            
+            // Convert multiple spaces to non-breaking spaces
+            if (text.includes('  ')) {
+              const processedText = text.replace(/ {2,}/g, (match) => {
+                return ' ' + '\u00A0'.repeat(match.length - 1);
+              });
+              
+              if (processedText !== text) {
+                console.log('🟢 [DEBUG PreserveSpaces] Converting:', {
+                  original: JSON.stringify(text),
+                  processed: JSON.stringify(processedText)
+                });
+                const { state, dispatch } = view;
+                const transaction = state.tr.insertText(processedText, from, to);
+                dispatch(transaction);
+                return true;
+              }
+            }
+            return false;
+          },
+          handleKeyDown: (view: any, event: KeyboardEvent) => {
+            // Intercept spacebar when there's already a space before cursor
+            if (event.key === ' ' || event.key === 'Spacebar') {
+              const { state } = view;
+              const selection = state.selection;
+              if (!selection) return false;
+              const { $from } = selection;
+              const textBefore = $from.parent.textBetween(
+                Math.max(0, $from.parentOffset - 1),
+                $from.parentOffset,
+                undefined,
+                '\ufffc'
+              );
+              
+              // If there's a space before, insert non-breaking space instead
+              if (textBefore === ' ' || textBefore === '\u00A0') {
+                console.log('🟢 [DEBUG PreserveSpaces] Spacebar after space, inserting nbsp');
+                const { dispatch } = view;
+                const transaction = state.tr.insertText('\u00A0', $from.pos, $from.pos);
+                dispatch(transaction);
+                return true;
+              }
+            }
+            return false;
+          }
+        }
+      })
+    ];
+  }
+});
 
 import { createLowlight } from "lowlight";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
@@ -27,6 +92,7 @@ import { EditorToolbar } from "./EditorToolbar";
 import { SlashCommandMenu } from "./SlashCommandMenu";
 import { TableBubbleMenu } from "./TableBubbleMenu";
 import { TableControls } from "./TableControls";
+import { DragHandle } from "./DragHandle";
 
 // Create lowlight instance
 const lowlight = createLowlight();
@@ -52,6 +118,67 @@ export default function DocEditor({
     editorProps: {
       attributes: {
         class: "focus:outline-none min-h-[400px] px-8 py-6",
+      },
+      handleTextInput: (view, from, to, text) => {
+        // DEBUG: Log ALL text input to see what we're receiving
+        console.log('🟢 [DEBUG handleTextInput] Received text input:', {
+          text: JSON.stringify(text),
+          textLength: text.length,
+          spaceCount: (text.match(/ /g) || []).length,
+          hasMultipleSpaces: text.includes('  '),
+          from,
+          to
+        });
+        
+        // Convert multiple spaces to non-breaking spaces to preserve them
+        if (text.includes('  ')) {
+          // Replace sequences of 2+ spaces with regular space + non-breaking spaces
+          const processedText = text.replace(/ {2,}/g, (match) => {
+            return ' ' + '\u00A0'.repeat(match.length - 1); // Use non-breaking space character
+          });
+          
+          if (processedText !== text) {
+            console.log('🟢 [DEBUG handleTextInput] Converting spaces:', {
+              original: JSON.stringify(text),
+              processed: JSON.stringify(processedText),
+              originalLength: text.length,
+              processedLength: processedText.length
+            });
+            
+            // Insert the processed text manually
+            const { state, dispatch } = view;
+            const transaction = state.tr.insertText(processedText, from, to);
+            dispatch(transaction);
+            return true; // We handled it
+          }
+        }
+        
+        return false; // Let TipTap handle it normally
+      },
+      handleKeyDown: (view, event) => {
+        // DEBUG: Log spacebar presses to see if we can intercept them
+        if (event.key === ' ' || event.key === 'Spacebar') {
+          const { state } = view;
+          const selection = state.selection;
+          if (!selection) return false;
+          const { $from } = selection;
+          const textBefore = $from.parent.textBetween(
+            Math.max(0, $from.parentOffset - 1),
+            $from.parentOffset,
+            undefined,
+            '\ufffc'
+          );
+          
+          // If there's a space before the cursor, we're typing multiple spaces
+          if (textBefore === ' ' || textBefore === '\u00A0') {
+            console.log('🟢 [DEBUG handleKeyDown] Spacebar pressed after space:', {
+              textBefore: JSON.stringify(textBefore),
+              isSpace: textBefore === ' ',
+              isNbsp: textBefore === '\u00A0'
+            });
+          }
+        }
+        return false; // Let TipTap handle it normally
       },
       handleDrop: (view, event, slice, moved) => {
         if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
@@ -87,6 +214,7 @@ export default function DocEditor({
       },
     },
     extensions: [
+      PreserveSpaces,
       StarterKit.configure({
         codeBlock: false, // We'll use CodeBlockLowlight instead
         link: false, // We'll add Link separately
@@ -404,8 +532,45 @@ export default function DocEditor({
       preserveWhitespace: 'full',
     },
     onUpdate: ({ editor }) => {
-      // Detect slash command
+      // Process document to convert multiple spaces to non-breaking spaces
       const { state } = editor;
+      let hasChanges = false;
+      const tr = state.tr;
+      
+      // Walk through all text nodes and convert multiple spaces
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === 'text' && node.text && node.text.includes('  ')) {
+          console.log('🟢 [DEBUG onUpdate] Found text with multiple spaces:', {
+            text: JSON.stringify(node.text),
+            pos,
+            spaceCount: (node.text.match(/ /g) || []).length
+          });
+          
+          // Replace sequences of 2+ spaces with space + non-breaking spaces
+          const processedText = node.text.replace(/ {2,}/g, (match) => {
+            return ' ' + '\u00A0'.repeat(match.length - 1);
+          });
+          
+          if (processedText !== node.text) {
+            console.log('🟢 [DEBUG onUpdate] Converting spaces:', {
+              original: JSON.stringify(node.text),
+              processed: JSON.stringify(processedText)
+            });
+            tr.replaceWith(pos, pos + node.nodeSize, state.schema.text(processedText, node.marks));
+            hasChanges = true;
+          }
+        }
+      });
+      
+      // Apply changes if any were made
+      if (hasChanges) {
+        console.log('🟢 [DEBUG onUpdate] Applying space conversion transaction');
+        editor.view.dispatch(tr);
+        // Don't process slash command if we made changes - return early
+        return;
+      }
+      
+      // Detect slash command
       const { selection } = state;
       const { $from } = selection;
       
@@ -479,6 +644,45 @@ export default function DocEditor({
     }
   };
 
+  // Add DOM-level spacebar interception
+  useEffect(() => {
+    if (!editor) return;
+    
+    const editorElement = editor.view.dom;
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle spacebar
+      if (e.key !== ' ' && e.key !== 'Spacebar') return;
+      
+      // Check if there's a space before the cursor
+      const { state, dispatch } = editor.view;
+      const { $from } = state.selection;
+      const textBefore = $from.parent.textBetween(
+        Math.max(0, $from.parentOffset - 1),
+        $from.parentOffset,
+        undefined,
+        '\ufffc'
+      );
+      
+      // If there's a space or non-breaking space before, insert non-breaking space
+      if (textBefore === ' ' || textBefore === '\u00A0') {
+        console.log('🟢 [DEBUG DOM KeyDown] Spacebar after space, inserting nbsp');
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const transaction = state.tr.insertText('\u00A0', $from.pos, $from.pos);
+        dispatch(transaction);
+        return;
+      }
+    };
+    
+    editorElement.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      editorElement.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [editor]);
+
   return (
     <div className="w-full flex flex-col max-w-full relative">
       {/* Header with close button - NOT sticky */}
@@ -495,8 +699,15 @@ export default function DocEditor({
           <button
             type="button"
             onClick={async () => {
+              console.log('🟢 [DEBUG Save Button] Save button clicked!');
               if (editor && onSave) {
-                await onSave(editor.getJSON());
+                const json = editor.getJSON();
+                console.log('🟢 [DEBUG Save Button] Got JSON from editor:', JSON.stringify(json, null, 2));
+                console.log('🟢 [DEBUG Save Button] Calling onSave callback...');
+                await onSave(json);
+                console.log('🟢 [DEBUG Save Button] onSave callback completed');
+              } else {
+                console.error('❌ [DEBUG Save Button] Editor or onSave missing!', { hasEditor: !!editor, hasOnSave: !!onSave });
               }
             }}
             className="px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium"
@@ -521,6 +732,7 @@ export default function DocEditor({
       {/* Editor Content */}
       <div className="flex-1 tiptap-editor w-full relative">
         <EditorContent editor={editor} />
+        {editor && <DragHandle editor={editor} />}
         {editor && <TableBubbleMenu editor={editor} />}
         {editor && <TableControls editor={editor} />}
         {/* Slash Command Menu - positioned relative to editor container */}

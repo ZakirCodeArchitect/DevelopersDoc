@@ -105,6 +105,24 @@ nav[class*="space-y"] {
 .tiptap-editor {
   background: white;
   border-radius: 0.5rem;
+  position: relative;
+}
+
+/* Drag handle styles */
+.drag-handle {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.drag-handle:hover {
+  opacity: 1 !important;
+}
+
+/* Drag drop indicator */
+.drag-drop-indicator {
+  pointer-events: none;
 }
 
 .tiptap-editor .ProseMirror p.is-empty:first-child::before,
@@ -496,6 +514,29 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
 }
 
 /* Prose content styles for rendered HTML */
+/* Preserve whitespace in read mode for text content */
+.prose {
+  white-space: pre-wrap !important;
+}
+
+/* Additional class for explicit whitespace preservation */
+.preserve-whitespace {
+  white-space: pre-wrap !important;
+}
+
+.preserve-whitespace p {
+  white-space: pre-wrap !important;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  white-space: normal;
+}
+
 .prose h1 {
   font-size: 2.25rem !important;
   font-weight: 700 !important;
@@ -522,6 +563,7 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
 .page-description-wrapper .prose p {
   color: #4b5563 !important;
   line-height: 1.75 !important;
+  white-space: pre-wrap !important;
 }
 
 .prose h2 {
@@ -555,6 +597,14 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
   margin-bottom: 0.75rem;
   line-height: 1.75;
   color: #374151;
+  white-space: pre-wrap !important;
+}
+
+/* Ensure empty paragraphs create visual spacing in read mode */
+.prose p:empty {
+  min-height: 1.5rem;
+  margin-bottom: 0.75rem;
+  display: block;
 }
 
 .prose code {
@@ -563,6 +613,7 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
   border-radius: 0.25rem;
   font-size: 0.875rem;
   font-family: monospace;
+  white-space: pre-wrap;
 }
 
 .prose pre {
@@ -571,6 +622,7 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
   padding: 1rem;
   margin: 1rem 0;
   overflow-x: auto;
+  white-space: pre;
 }
 
 .prose pre code {
@@ -607,9 +659,19 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
   text-decoration: underline !important;
 }
 
-.prose ul:not(.task-list), .prose ol {
+.prose ul:not(.task-list), 
+.prose ol {
   margin: 1rem 0;
   padding-left: 1.5rem;
+  white-space: normal;
+}
+
+.prose li:not(.task-item) {
+  white-space: normal;
+}
+
+.prose li:not(.task-item) * {
+  white-space: pre-wrap;
 }
 
 .prose ul:not(.task-list) {
@@ -631,6 +693,7 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
   margin: 1rem 0;
   font-style: italic;
   color: #6b7280;
+  white-space: pre-wrap;
 }
 
 /* Table styles in editor */
@@ -726,6 +789,11 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
   border-collapse: collapse !important;
   width: 100% !important;
   margin: 1rem 0 !important;
+  white-space: normal;
+}
+
+.prose table * {
+  white-space: normal;
 }
 
 .prose td,
