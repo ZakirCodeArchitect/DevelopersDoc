@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, memo, useRef } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ContextMenu } from './ContextMenu';
 
@@ -37,7 +38,7 @@ interface DocSidebarProps {
 
 const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   items,
-  currentPath,
+  currentPath: currentPathProp,
   className,
   onCreateProject,
   onCreateDoc,
@@ -46,6 +47,11 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   onRenameDoc,
   onDeleteDoc,
 }) => {
+  // Use usePathname() internally if currentPath prop is not provided
+  // This allows StableSidebar to avoid re-rendering when pathname changes
+  const pathname = usePathname();
+  const currentPath = currentPathProp ?? pathname;
+  
   // Always use server default for initial state to avoid hydration mismatch
   const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
     return new Set(['Your Docs']); // Always use server-side default initially
@@ -386,7 +392,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     <aside
       className={cn(
         'w-64 border-r border-gray-200 bg-white',
-        'fixed left-0 top-16 h-[calc(100vh-4rem)] overflow-y-auto',
+        'fixed left-0 top-16 h-[calc(100vh-4rem)] overflow-y-auto z-10',
         className
       )}
       style={{ 
@@ -449,17 +455,20 @@ const deepCompareNavItems = (prev: NavItem[], next: NavItem[]): boolean => {
 
 // Custom comparison for DocSidebar - Ultra-strict to prevent any flashing
 // STRATEGY: Only re-render when structure OR path changes, but batch the updates
+// Note: If currentPath is not provided, DocSidebar uses usePathname() internally
+// so path changes will be handled by React's hook system, not props
 const areSidebarPropsEqual = (
   prevProps: DocSidebarProps,
   nextProps: DocSidebarProps
 ) => {
   // First check: Are items exactly the same reference?
   if (prevProps.items === nextProps.items) {
-    // Same reference - check if path changed
+    // Same reference - check if path prop changed (if provided)
+    // If currentPath is undefined in both, DocSidebar handles it internally via usePathname
     if (prevProps.currentPath === nextProps.currentPath) {
       return true; // Nothing changed - block re-render
     }
-    // Only path changed - allow minimal re-render
+    // Only path prop changed - allow minimal re-render
     return false;
   }
 
@@ -468,12 +477,13 @@ const areSidebarPropsEqual = (
     return false; // Structure actually changed - allow re-render
   }
 
-  // Structure is same but reference changed - check path
+  // Structure is same but reference changed - check path prop
   if (prevProps.currentPath !== nextProps.currentPath) {
-    return false; // Path changed - allow re-render
+    return false; // Path prop changed - allow re-render
   }
 
-  // Same structure, same path - block re-render
+  // Same structure, same path prop - block re-render
+  // (Pathname changes when currentPath is undefined will be handled by usePathname hook)
   return true;
 };
 

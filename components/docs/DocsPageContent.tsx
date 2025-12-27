@@ -7,7 +7,7 @@ import { DocTableOfContents, TocItem, PageLink } from './DocTableOfContents';
 import type { NavLink } from './DocNavigation';
 import type { ProcessedDocument, ProcessedProject, ProcessedYourDoc, ProcessedPage } from '@/lib/docs';
 import { isProject, isProjectDocument, isPage, getDocumentForPage } from '@/lib/docs';
-import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, memo, useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateDoc } from './CreateDocHandler';
 import { useAddPage } from './AddPageHandler';
@@ -102,11 +102,36 @@ const DocsPageContentComponent = ({
   const isSavingRef = useRef(false);
   const { handleCreateDoc, CreateDocModal } = useCreateDoc();
   const { handleAddPage, AddPageModal } = useAddPage();
-
+  
+  // Use transition to handle navigation smoothly
+  const [isPending, startTransition] = useTransition();
+  const [displayContent, setDisplayContent] = useState<{
+    path: string;
+    page: ProcessedDocument | ProcessedProject | ProcessedYourDoc | ProcessedPage | null;
+  }>({ path: currentPath, page: currentPage });
+  const prevPathRef = useRef(currentPath);
+  
+  // Update display content when props change, using transition for smooth updates
+  useEffect(() => {
+    if (prevPathRef.current !== currentPath) {
+      // Use transition to mark this as a non-urgent update
+      startTransition(() => {
+        setDisplayContent({ path: currentPath, page: currentPage });
+      });
+      prevPathRef.current = currentPath;
+    } else {
+      // Immediate update if path hasn't changed (just data update)
+      setDisplayContent({ path: currentPath, page: currentPage });
+    }
+  }, [currentPath, currentPage, startTransition]);
+  
+  // Use displayContent for rendering to prevent blinking
+  const pageToRender = displayContent.page;
+  
   // If page not found, show 404
-  if (!currentPage) {
+  if (!pageToRender) {
     return (
-      <div className="flex flex-1 w-full items-center justify-center" key={currentPath}>
+      <div className="flex flex-1 w-full items-center justify-center">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Page Not Found</h1>
           <p className="text-gray-600 mb-8">The page you're looking for doesn't exist.</p>
@@ -122,20 +147,20 @@ const DocsPageContentComponent = ({
   }
 
   // If current page is a project, show project overview with document list
-  if (isProject(currentPage)) {
+  if (isProject(pageToRender)) {
     return (
-      <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]" key={currentPath}>
+      <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]">
         <DocContent
-          title={currentPage.title}
-          lastUpdated={currentPage.lastUpdated}
-          previous={currentPage.navigation.previous || undefined}
-          next={currentPage.navigation.next || undefined}
+          title={pageToRender.title}
+          lastUpdated={pageToRender.lastUpdated}
+          previous={pageToRender.navigation.previous || undefined}
+          next={pageToRender.navigation.next || undefined}
           fullWidth={true}
         >
           {/* Project Description */}
-          {currentPage.description && (
+          {pageToRender.description && (
             <div className="mb-8">
-              <p className="text-gray-700 text-lg">{currentPage.description}</p>
+              <p className="text-gray-700 text-lg">{pageToRender.description}</p>
             </div>
           )}
 
@@ -145,8 +170,8 @@ const DocsPageContentComponent = ({
               <h2 className="text-2xl font-bold text-gray-900">Documents</h2>
               <button
                 onClick={() => {
-                  // Get project ID from currentPage (which is a ProcessedProject)
-                  handleCreateDoc(currentPage.id, currentPage.title);
+                  // Get project ID from pageToRender (which is a ProcessedProject)
+                  handleCreateDoc(pageToRender.id, pageToRender.title);
                 }}
                 className="flex items-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
                 aria-label="Create new document"
@@ -168,9 +193,9 @@ const DocsPageContentComponent = ({
                 Add Document
               </button>
             </div>
-            {currentPage.documents && currentPage.documents.length > 0 ? (
+            {pageToRender.documents && pageToRender.documents.length > 0 ? (
               <div className="grid grid-cols-1 gap-4">
-                {currentPage.documents.map((doc) => (
+                {pageToRender.documents.map((doc) => (
                   <a
                     key={doc.id}
                     href={doc.href}
@@ -270,13 +295,13 @@ const DocsPageContentComponent = ({
               <div>
                 <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Documents</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {currentPage.documents?.length || 0}
+                  {pageToRender.documents?.length || 0}
                 </p>
               </div>
-              {currentPage.lastUpdated && (
+              {pageToRender.lastUpdated && (
                 <div>
                   <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Last Updated</p>
-                  <p className="text-sm text-gray-700">{currentPage.lastUpdated}</p>
+                  <p className="text-sm text-gray-700">{pageToRender.lastUpdated}</p>
                 </div>
               )}
             </div>
@@ -318,8 +343,9 @@ const DocsPageContentComponent = ({
   }
 
   // Determine if we're viewing a page, document, or project
-  const isPageView = isPage(currentPage);
-  const basePage = isPageView ? currentPage : null;
+  // Use pageToRender for rendering to prevent blinking, but currentPage for optimistic updates
+  const isPageView = isPage(pageToRender);
+  const basePage = isPageView ? pageToRender : null;
   // Use optimistic page if available, otherwise use the base page
   const page = optimisticPage || basePage;
   const document = isPageView && page ? getDocumentForPage(page, processedProjects, processedYourDocs) : null;
@@ -623,7 +649,7 @@ const DocsPageContentComponent = ({
   // Handle pages - if currentPage is a ProcessedPage, render it
   if (isPageView && page && document) {
     return (
-      <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]" key={currentPath}>
+      <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]">
         <DocContent
           title={page.title}
           lastUpdated={document.lastUpdated}
@@ -751,7 +777,7 @@ const DocsPageContentComponent = ({
   }
 
   // Handle documents (when no specific page is selected) - redirect to first page
-  if (!isProject(currentPage) && 'pages' in currentPage) {
+  if (currentPage && !isProject(currentPage) && 'pages' in currentPage) {
     const document = currentPage as ProcessedDocument | ProcessedYourDoc;
     if (document.pages.length > 0) {
       // This case shouldn't happen because findDocumentByPath redirects to first page

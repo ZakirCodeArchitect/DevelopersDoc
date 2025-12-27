@@ -2,8 +2,8 @@
   "projects": [
     {
       "id": "haraik",
-      "label": "HarAik",
-      "title": "HarAik",
+      "label": "HarAik Global",
+      "title": "HarAik Global",
       "description": "This is an audit finance company registered in Saudia",
       "lastUpdated": "December 20, 2025",
       "documents": [
@@ -132,24 +132,6 @@
             "type": "text",
             "content": [
               "efe"
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "reactjs-components-navigation",
-      "label": "reactjs components navigation",
-      "title": "reactjs components navigation",
-      "lastUpdated": "December 23, 2025",
-      "content": {
-        "sections": [
-          {
-            "id": "overview",
-            "title": "Overview",
-            "type": "text",
-            "content": [
-              "abcdef"
             ]
           }
         ]

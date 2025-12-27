@@ -16,24 +16,6 @@ interface DocsLayoutClientProps {
   children: React.ReactNode;
 }
 
-// Separate sidebar wrapper that never re-renders
-const SidebarWrapper = memo(({ 
-  items, 
-  handlers 
-}: { 
-  items: NavItem[]; 
-  handlers: any;
-}) => {
-  return (
-    <StableSidebar
-      items={items}
-      {...handlers}
-    />
-  );
-}, () => true); // NEVER re-render - always return true
-
-SidebarWrapper.displayName = 'SidebarWrapper';
-
 export function DocsLayoutClient({
   sidebarItems,
   processedProjects,
@@ -131,9 +113,9 @@ export function DocsLayoutClient({
         navLinks={navLinks}
       />
       <div className="flex flex-1" style={{ fontFamily: 'var(--font-lilex), monospace' }}>
-        <SidebarWrapper
+        <StableSidebar
           items={memoizedSidebarItems}
-          handlers={stableHandlers}
+          {...stableHandlers}
         />
         <div className="flex-1 min-h-screen bg-white ml-64">
           {children}

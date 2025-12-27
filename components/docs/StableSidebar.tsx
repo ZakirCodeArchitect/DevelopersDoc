@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
+import { memo } from 'react';
 import { DocSidebar, NavItem } from './DocSidebar';
 
 interface StableSidebarProps {
@@ -14,24 +13,13 @@ interface StableSidebarProps {
   onDeleteDoc?: (docId: string, docName: string, projectId?: string) => void;
 }
 
-// This component NEVER re-renders - it's completely isolated
-export function StableSidebar(props: StableSidebarProps) {
-  const currentPath = usePathname();
-  const mountedRef = useRef(false);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  // Component mounts once and never updates
-  // Only currentPath changes are passed through
+// Simple wrapper that never re-renders - DocSidebar handles pathname internally
+export const StableSidebar = memo((props: StableSidebarProps) => {
+  // DocSidebar will use usePathname() internally, so we don't need to pass currentPath
+  // This prevents this component from re-rendering when pathname changes
   return (
     <DocSidebar
       items={props.items}
-      currentPath={currentPath}
       onCreateProject={props.onCreateProject}
       onCreateDoc={props.onCreateDoc}
       onRenameProject={props.onRenameProject}
@@ -40,8 +28,23 @@ export function StableSidebar(props: StableSidebarProps) {
       onDeleteDoc={props.onDeleteDoc}
     />
   );
-}
+}, (prevProps, nextProps) => {
+  // Only re-render if items or handlers change
+  if (prevProps.items !== nextProps.items) {
+    return false;
+  }
+  if (
+    prevProps.onCreateProject !== nextProps.onCreateProject ||
+    prevProps.onCreateDoc !== nextProps.onCreateDoc ||
+    prevProps.onRenameProject !== nextProps.onRenameProject ||
+    prevProps.onDeleteProject !== nextProps.onDeleteProject ||
+    prevProps.onRenameDoc !== nextProps.onRenameDoc ||
+    prevProps.onDeleteDoc !== nextProps.onDeleteDoc
+  ) {
+    return false;
+  }
+  return true; // Prevent re-render
+});
 
-// NEVER re-render this component - it's completely stable
 StableSidebar.displayName = 'StableSidebar';
 
