@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
-import docsData from '@/data/docs.json';
+
+// Helper function to read docs data fresh from file
+async function readDocsData() {
+  const filePath = path.join(process.cwd(), 'data', 'docs.json');
+  const fileContents = await fs.readFile(filePath, 'utf-8');
+  return JSON.parse(fileContents);
+}
 
 // Helper to render a Tiptap node to HTML
 function renderNodeToHTML(node: any): string {
@@ -404,6 +410,9 @@ export async function PATCH(
     const pageId = resolvedParams.pageId;
     const body = await request.json();
     const { content, projectId } = body;
+    
+    // Read fresh data from file
+    const docsData = await readDocsData();
     
     // DEBUG: Log what the server receives
     console.log('🟡 [DEBUG API PATCH] Received save request:', {

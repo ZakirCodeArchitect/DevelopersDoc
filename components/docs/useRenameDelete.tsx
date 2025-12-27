@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { RenameModal } from './RenameModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 
@@ -24,6 +24,7 @@ export function useRenameDelete() {
 
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleRenameProject = useCallback((projectId: string, currentName: string) => {
     setRenameModal({
@@ -92,10 +93,28 @@ export function useRenameDelete() {
       
       // Navigate to new URL if href changed
       if (data.newHref && renameModal.type === 'document') {
+        // Use requestAnimationFrame to ensure refresh happens after navigation
         router.push(data.newHref);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            router.refresh();
+          });
+        });
+      } else {
+        // Refresh immediately if no navigation needed (e.g., renaming while on project page)
+        // Use double requestAnimationFrame to ensure it happens after any pending state updates
+        // Also refresh the current pathname to ensure cache invalidation
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // Force refresh by calling refresh multiple times if needed
+            router.refresh();
+            // Small delay to ensure the refresh is processed
+            setTimeout(() => {
+              router.refresh();
+            }, 50);
+          });
+        });
       }
-      
-      router.refresh();
     } catch (error) {
       console.error('Error renaming:', error);
       alert(error instanceof Error ? error.message : 'Failed to rename');
@@ -130,22 +149,69 @@ export function useRenameDelete() {
       setDeleteModal(null);
       
       // Navigate away if we're on the deleted item's page
+      // For document deletion, we need to refresh the project page to show updated document list
       if (deleteModal.type === 'project') {
+        // Navigate to docs home
         router.push('/docs');
-        // Wait a bit for navigation, then refresh
+        // Wait for navigation, then refresh multiple times to ensure cache is cleared
         setTimeout(() => {
           router.refresh();
-        }, 100);
+          setTimeout(() => {
+            router.refresh();
+          }, 100);
+        }, 200);
       } else if (deleteModal.projectId) {
-        router.push(`/docs/projects/${deleteModal.projectId}`);
-        setTimeout(() => {
+        // For document deletion, check if we're already on the project page
+        const targetPath = `/docs/projects/${deleteModal.projectId}`;
+        const isOnTargetPage = pathname === targetPath;
+        
+        if (isOnTargetPage) {
+          // We're already on the project page, force multiple refreshes to clear cache
+          // Use a combination of refresh and a small delay to ensure cache invalidation
           router.refresh();
-        }, 100);
+          setTimeout(() => {
+            router.refresh();
+            // Third refresh to ensure cache is fully cleared
+            setTimeout(() => {
+              router.refresh();
+              // If still not working after 1 second, force a hard reload as last resort
+              setTimeout(() => {
+                if (document.visibilityState === 'visible') {
+                  window.location.reload();
+                }
+              }, 1000);
+            }, 150);
+          }, 100);
+        } else {
+          // Navigate to project page first, then refresh
+          router.replace(targetPath);
+          // Wait for navigation to complete, then refresh multiple times
+          setTimeout(() => {
+            router.refresh();
+            setTimeout(() => {
+              router.refresh();
+              // Third refresh to ensure cache is fully cleared
+              setTimeout(() => {
+                router.refresh();
+                // If still not working after 1.5 seconds, force a hard reload as last resort
+                setTimeout(() => {
+                  if (document.visibilityState === 'visible') {
+                    window.location.reload();
+                  }
+                }, 1500);
+              }, 150);
+            }, 150);
+          }, 400);
+        }
       } else {
+        // For "Your Docs" deletion
         router.push('/docs');
         setTimeout(() => {
           router.refresh();
-        }, 100);
+          setTimeout(() => {
+            router.refresh();
+          }, 100);
+        }, 200);
       }
     } catch (error) {
       console.error('Error deleting:', error);

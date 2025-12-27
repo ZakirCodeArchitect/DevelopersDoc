@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
-import docsData from '@/data/docs.json';
 import type { ProjectData } from '@/lib/docs';
+
+// Helper function to read docs data fresh from file
+async function readDocsData() {
+  const filePath = path.join(process.cwd(), 'data', 'docs.json');
+  const fileContents = await fs.readFile(filePath, 'utf-8');
+  return JSON.parse(fileContents);
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { name, description } = body;
+    
+    // Read fresh data from file
+    const docsData = await readDocsData();
 
     if (!name || !description) {
       return NextResponse.json(

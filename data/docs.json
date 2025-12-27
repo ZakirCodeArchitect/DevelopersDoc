@@ -8,121 +8,9 @@
       "lastUpdated": "December 20, 2025",
       "documents": [
         {
-          "id": "consultation-module-details",
-          "label": "Consultation module details",
-          "title": "Consultation module details",
-          "lastUpdated": "December 21, 2025",
-          "content": {
-            "sections": [
-              {
-                "id": "overview",
-                "title": "Overview",
-                "type": "text",
-                "content": [
-                  "auditor expert firms and technical consultations to be raised."
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "id": "kyc-and-project-setup",
-          "label": "kyc and project setup",
-          "title": "kyc and project setup",
-          "lastUpdated": "December 24, 2025",
-          "content": {
-            "pages": [
-              {
-                "id": "overview",
-                "title": "Overview",
-                "sections": [
-                  {
-                    "id": "overview-section",
-                    "title": "Overview",
-                    "type": "text",
-                    "content": [
-                      "contract is mandatory"
-                    ]
-                  }
-                ]
-              },
-              {
-                "id": "react-rendering-components",
-                "title": "React rendering components",
-                "sections": [
-                  {
-                    "id": "react-rendering-components-content",
-                    "title": "",
-                    "type": "html",
-                    "content": [
-                      "<p></p>",
-                      "<p>server components</p>"
-                    ]
-                  }
-                ]
-              },
-              {
-                "id": "abdec",
-                "title": "abdec",
-                "sections": [
-                  {
-                    "id": "abdec-section",
-                    "title": "",
-                    "type": "text",
-                    "content": [
-                      ""
-                    ]
-                  }
-                ]
-              },
-              {
-                "id": "dddd",
-                "title": "Django",
-                "sections": [
-                  {
-                    "id": "dddd-content",
-                    "title": "",
-                    "type": "html",
-                    "content": [
-                      "<p>Implementation of chatbot</p>",
-                      "<p><strong>abcdef</strong></p>",
-                      "<ul><li><p>do this</p></li></ul>",
-                      "<p>steps:</p>",
-                      "<ol><li><p>open</p></li><li><p>click</p></li><li><p>close</p></li></ol>",
-                      "<p></p>",
-                      "<ul data-type=\"taskList\"><li data-type=\"taskItem\" data-checked=\"true\"><label><input type=\"checkbox\" checked><span><p>submit reports today</p></span></label></li><li data-type=\"taskItem\" data-checked=\"false\"><label><input type=\"checkbox\" ><span><p>dveov</p></span></label></li><li data-type=\"taskItem\" data-checked=\"false\"><label><input type=\"checkbox\" ><span><p>vein</p></span></label></li><li data-type=\"taskItem\" data-checked=\"false\"><label><input type=\"checkbox\" ><span><p>evnt</p></span></label></li></ul>",
-                      "<blockquote><p>this is important</p></blockquote>",
-                      "<pre class=\"bg-gray-100 rounded-md p-4 my-4\"><code class=\"block\">print(&quot;hello world&quot;);</code></pre>",
-                      "<p></p>"
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "id": "support-system",
-          "label": "Support System",
-          "title": "Support System",
-          "lastUpdated": "December 24, 2025",
-          "content": {
-            "sections": [
-              {
-                "id": "overview",
-                "title": "Overview",
-                "type": "text",
-                "content": [
-                  "Website support system for queries"
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "id": "macbook-pro",
-          "label": "Macbook Pro",
-          "title": "Macbook Pro",
+          "id": "ai-engineer",
+          "label": "AI Engineer",
+          "title": "AI Engineer",
           "description": "M3 Chip",
           "lastUpdated": "December 27, 2025",
           "content": {
@@ -194,6 +82,31 @@
                       "<p>Once we’ve indexed our data, we will use an <strong><a href=\"https://docs.langchain.com/oss/python/langchain/agents\" class=\"text-blue-600 underline hover:text-blue-800\">agent</a></strong> as our orchestration framework to implement the retrieval and generation steps.</p>",
                       "<p></p>",
                       "<p></p>",
+                      "<p></p>"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "llm",
+          "label": "LLM",
+          "title": "LLM",
+          "description": "Large Language Models",
+          "lastUpdated": "December 27, 2025",
+          "content": {
+            "pages": [
+              {
+                "id": "untitled-page",
+                "title": "Untitled page",
+                "sections": [
+                  {
+                    "id": "untitled-page-content",
+                    "title": "",
+                    "type": "html",
+                    "content": [
                       "<p></p>"
                     ]
                   }

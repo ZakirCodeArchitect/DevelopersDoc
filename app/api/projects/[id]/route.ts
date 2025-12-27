@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
-import docsData from '@/data/docs.json';
+
+// Helper function to read docs data fresh from file
+async function readDocsData() {
+  const filePath = path.join(process.cwd(), 'data', 'docs.json');
+  const fileContents = await fs.readFile(filePath, 'utf-8');
+  return JSON.parse(fileContents);
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -12,6 +18,9 @@ export async function PATCH(
     const projectId = resolvedParams.id;
     const body = await request.json();
     const { name } = body;
+    
+    // Read fresh data from file
+    const docsData = await readDocsData();
 
     if (!name) {
       return NextResponse.json(
@@ -56,6 +65,9 @@ export async function DELETE(
   try {
     const resolvedParams = await params;
     const projectId = resolvedParams.id;
+    
+    // Read fresh data from file
+    const docsData = await readDocsData();
 
     const projectIndex = docsData.projects.findIndex((p) => p.id === projectId);
     if (projectIndex === -1) {

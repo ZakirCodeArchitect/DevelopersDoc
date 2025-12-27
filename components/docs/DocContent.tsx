@@ -55,7 +55,7 @@ export const DocContent: React.FC<DocContentProps> = memo(({
         )}>
           {lastUpdated && (
             <p className={cn(
-              "text-sm text-gray-500 mb-4",
+              "text-sm text-gray-500 mt-8 mb-4",
               !fullWidth && "max-w-7xl"
             )}>
               Last updated on {lastUpdated}

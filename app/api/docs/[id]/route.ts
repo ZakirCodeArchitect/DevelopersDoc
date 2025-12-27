@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { promises as fs } from 'fs';
 import path from 'path';
-import docsData from '@/data/docs.json';
+
+// Helper function to read docs data fresh from file
+async function readDocsData() {
+  const filePath = path.join(process.cwd(), 'data', 'docs.json');
+  const fileContents = await fs.readFile(filePath, 'utf-8');
+  return JSON.parse(fileContents);
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -12,6 +19,9 @@ export async function PATCH(
     const docId = resolvedParams.id;
     const body = await request.json();
     const { name, projectId } = body;
+    
+    // Read fresh data from file
+    const docsData = await readDocsData();
 
     if (!name) {
       return NextResponse.json(
@@ -125,6 +135,9 @@ export async function DELETE(
     const docId = resolvedParams.id;
     const body = await request.json();
     const { projectId } = body;
+    
+    // Read fresh data from file
+    const docsData = await readDocsData();
 
     // If projectId is provided, delete document from project
     if (projectId) {
@@ -151,6 +164,10 @@ export async function DELETE(
       const filePath = path.join(process.cwd(), 'data', 'docs.json');
       await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
 
+      // Revalidate the project page and docs pages to clear cache
+      revalidatePath(`/docs/projects/${projectId}`);
+      revalidatePath('/docs', 'layout');
+
       return NextResponse.json({
         success: true,
       });
@@ -170,6 +187,9 @@ export async function DELETE(
       // Write to file
       const filePath = path.join(process.cwd(), 'data', 'docs.json');
       await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
+
+      // Revalidate docs pages to clear cache
+      revalidatePath('/docs', 'layout');
 
       return NextResponse.json({
         success: true,
