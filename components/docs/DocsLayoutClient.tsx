@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useCallback, memo } from 'react';
+import React, { useMemo, useRef, useCallback, memo, useState } from 'react';
 import { StableSidebar } from './StableSidebar';
 import { NavItem } from './DocSidebar';
 import { Header } from '@/components/sections/Header';
@@ -22,6 +22,8 @@ export function DocsLayoutClient({
   processedYourDocs,
   children,
 }: DocsLayoutClientProps) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showExpandButton, setShowExpandButton] = useState(false);
   const { handleCreateProject, CreateProjectModal } = useCreateProject();
   const { handleCreateDoc, CreateDocModal } = useCreateDoc();
   const {
@@ -115,9 +117,61 @@ export function DocsLayoutClient({
       <div className="flex flex-1" style={{ fontFamily: 'var(--font-lilex), monospace' }}>
         <StableSidebar
           items={memoizedSidebarItems}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => {
+            console.log('🟢 [DEBUG] onToggleCollapse handler called in DocsLayoutClient');
+            console.log('🟢 [DEBUG] Current isSidebarCollapsed:', isSidebarCollapsed);
+            setIsSidebarCollapsed(prev => {
+              const newValue = !prev;
+              console.log('🟢 [DEBUG] Setting isSidebarCollapsed from', prev, 'to', newValue);
+              
+              // If collapsing, show expand button after animation completes (300ms)
+              if (newValue) {
+                setShowExpandButton(false);
+                setTimeout(() => {
+                  setShowExpandButton(true);
+                }, 300);
+              } else {
+                // If expanding, hide button immediately
+                setShowExpandButton(false);
+              }
+              
+              return newValue;
+            });
+          }}
           {...stableHandlers}
         />
-        <div className="flex-1 min-h-screen bg-white ml-64">
+        {/* Expand button when collapsed - positioned at same height as Dashboard item */}
+        {showExpandButton && isSidebarCollapsed && (
+          <button
+            type="button"
+            onClick={() => {
+              setShowExpandButton(false);
+              setIsSidebarCollapsed(false);
+            }}
+            className="fixed left-0 p-1.5 bg-white border border-gray-200 border-l-0 rounded-r-md hover:bg-gray-50 text-gray-600 hover:text-gray-900 shadow-sm z-20 flex items-center justify-center transition-opacity duration-200"
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+            style={{ 
+              top: 'calc(4rem + 1rem + 0.375rem)', // top-16 (header) + p-4 (nav padding) + py-1.5 (item top padding) to align with Dashboard item
+            }}
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 5l7 7-7 7"
+              />
+            </svg>
+          </button>
+        )}
+        <div className={`flex-1 min-h-screen bg-white transition-all duration-300 ${isSidebarCollapsed ? 'ml-0 pl-10' : 'ml-64'}`}>
           {children}
         </div>
       </div>

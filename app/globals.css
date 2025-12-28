@@ -64,7 +64,8 @@ body {
 }
 
 /* Prevent sidebar flashing during navigation */
-aside[class*="fixed"] {
+/* Exclude collapsible sidebar from this rule - it needs dynamic transform */
+aside[class*="fixed"]:not([data-collapsible-sidebar]) {
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;

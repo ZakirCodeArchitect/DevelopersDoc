@@ -327,6 +327,10 @@ export function buildSidebarItems(
 ): NavItem[] {
   return [
     {
+      label: 'Dashboard',
+      href: '/docs',
+    },
+    {
       label: 'Projects',
       href: '#',
       children: projects.map((project) => ({

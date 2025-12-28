@@ -28,6 +28,8 @@ interface DocSidebarProps {
   items: NavItem[];
   currentPath?: string;
   className?: string;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
   onCreateProject?: () => void;
   onCreateDoc?: (projectId?: string, projectName?: string) => void;
   onRenameProject?: (projectId: string, currentName: string) => void;
@@ -40,6 +42,8 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   items,
   currentPath: currentPathProp,
   className,
+  isCollapsed = false,
+  onToggleCollapse,
   onCreateProject,
   onCreateDoc,
   onRenameProject,
@@ -47,6 +51,19 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   onRenameDoc,
   onDeleteDoc,
 }) => {
+  // Debug: Log props on mount and when they change
+  useEffect(() => {
+    console.log('🟡 [DEBUG] DocSidebar props:', {
+      isCollapsed,
+      hasOnToggleCollapse: !!onToggleCollapse,
+      itemsCount: items.length,
+    });
+  }, [isCollapsed, onToggleCollapse, items.length]);
+  
+  // Debug: Log transform value
+  useEffect(() => {
+    console.log('🟡 [DEBUG] Sidebar transform will be:', isCollapsed ? 'translateX(-100%)' : 'translateZ(0)');
+  }, [isCollapsed]);
   // Use usePathname() internally if currentPath prop is not provided
   // This allows StableSidebar to avoid re-rendering when pathname changes
   const pathname = usePathname();
@@ -203,7 +220,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
               </svg>
             </button>
           )}
-          {!isCollapsibleHeader && !isProject && !hasChildren && <div className="w-5" />}
+          {!isCollapsibleHeader && !isProject && !hasChildren && item.label !== 'Dashboard' && <div className="w-5" />}
           {isCollapsibleHeader ? (
             <div className="flex-1 flex items-center gap-1">
             <span
@@ -353,7 +370,43 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
             >
               {item.label}
             </Link>
-              {onRenameDoc && onDeleteDoc && !isCollapsibleHeader && (
+              {item.label === 'Dashboard' && onToggleCollapse && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    console.log('🔵 [DEBUG] Dashboard collapse button clicked');
+                    console.log('🔵 [DEBUG] Event:', e);
+                    console.log('🔵 [DEBUG] onToggleCollapse exists:', !!onToggleCollapse);
+                    console.log('🔵 [DEBUG] Current isCollapsed state:', isCollapsed);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔵 [DEBUG] Calling onToggleCollapse...');
+                    onToggleCollapse();
+                    console.log('🔵 [DEBUG] onToggleCollapse called');
+                  }}
+                  className="p-1.5 hover:bg-gray-100 rounded text-gray-600 hover:text-gray-900 flex-shrink-0"
+                  aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                >
+                  <svg
+                    className={cn(
+                      "w-4 h-4 transition-transform",
+                      isCollapsed && "rotate-180"
+                    )}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
+                </button>
+              )}
+              {onRenameDoc && onDeleteDoc && !isCollapsibleHeader && item.label !== 'Dashboard' && (
                 <div 
                   data-context-menu
                   className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 [&[data-menu-open='true']]:opacity-100 flex-shrink-0"
@@ -390,13 +443,15 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
 
   return (
     <aside
+      data-collapsible-sidebar="true"
       className={cn(
         'w-64 border-r border-gray-200 bg-white',
         'fixed left-0 top-16 h-[calc(100vh-4rem)] overflow-y-auto z-10',
+        'transition-transform duration-300 ease-in-out',
         className
       )}
       style={{ 
-        transform: 'translateZ(0)', // Force GPU acceleration
+        transform: isCollapsed ? 'translateX(-100%) translateZ(0)' : 'translateZ(0)', // Force GPU acceleration and handle collapse
         willChange: 'auto',
         backfaceVisibility: 'hidden',
         WebkitBackfaceVisibility: 'hidden',
@@ -461,6 +516,11 @@ const areSidebarPropsEqual = (
   prevProps: DocSidebarProps,
   nextProps: DocSidebarProps
 ) => {
+  // Check if isCollapsed changed - allow re-render if it did
+  if (prevProps.isCollapsed !== nextProps.isCollapsed) {
+    return false; // Allow re-render
+  }
+
   // First check: Are items exactly the same reference?
   if (prevProps.items === nextProps.items) {
     // Same reference - check if path prop changed (if provided)
@@ -482,7 +542,7 @@ const areSidebarPropsEqual = (
     return false; // Path prop changed - allow re-render
   }
 
-  // Same structure, same path prop - block re-render
+  // Same structure, same path prop, same collapse state - block re-render
   // (Pathname changes when currentPath is undefined will be handled by usePathname hook)
   return true;
 };
