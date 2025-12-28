@@ -15,4 +15,5 @@ export { RenameModal } from './RenameModal';
 export { DeleteConfirmModal } from './DeleteConfirmModal';
 export { useRenameDelete } from './useRenameDelete';
 export { DocsLandingPage } from './DocsLandingPage';
+export { ShareModal } from './ShareModal';
 

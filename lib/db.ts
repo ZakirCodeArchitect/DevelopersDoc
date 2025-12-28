@@ -8,6 +8,7 @@ import type {
   DocumentSection,
   DocsData 
 } from './docs';
+import { getSharedProjects, getSharedDocuments } from './shares';
 
 // PrismaClient is attached to the `global` object in development to prevent
 // exhausting your database connection limit.
@@ -122,17 +123,80 @@ export async function getAllYourDocs(userId: string): Promise<YourDocData[]> {
 }
 
 /**
- * Get all docs data (projects + your docs) for a specific user
+ * Get all docs data (projects + your docs) for a specific user, including shared items
  */
 export async function getAllDocsData(userId: string): Promise<DocsData> {
-  const [projects, yourDocs] = await Promise.all([
+  const [ownedProjects, ownedYourDocs, sharedProjects, sharedYourDocs] = await Promise.all([
     getAllProjects(userId),
     getAllYourDocs(userId),
+    getSharedProjects(userId),
+    getSharedDocuments(userId),
   ]);
 
+  // Convert shared projects to ProjectData format
+  const sharedProjectsData: ProjectData[] = sharedProjects.map(project => ({
+    id: project.id,
+    label: project.label,
+    title: project.title,
+    description: project.description || undefined,
+    lastUpdated: project.lastUpdated,
+    documents: project.documents.map(doc => ({
+      id: doc.id,
+      label: doc.label,
+      title: doc.title,
+      description: doc.description || undefined,
+      lastUpdated: doc.lastUpdated,
+      content: {
+        pages: doc.pages.map(page => ({
+          id: page.id,
+          title: page.title,
+          pageNumber: page.pageNumber,
+          sections: [], // nav-only
+        })),
+      },
+    })),
+  }));
+
+  // Convert shared documents to YourDocData format
+  const sharedYourDocsData: YourDocData[] = sharedYourDocs
+    .filter(doc => !doc.projectId) // Only include documents without projects
+    .map(doc => ({
+      id: doc.id,
+      label: doc.label,
+      title: doc.title,
+      description: doc.description || undefined,
+      lastUpdated: doc.lastUpdated,
+      content: {
+        pages: doc.pages.map(page => ({
+          id: page.id,
+          title: page.title,
+          pageNumber: page.pageNumber,
+          sections: [], // nav-only
+        })),
+      },
+    }));
+
+  // Merge owned and shared items (avoid duplicates)
+  const allProjects = [...ownedProjects];
+  const allYourDocs = [...ownedYourDocs];
+  
+  // Add shared projects that aren't already owned
+  for (const sharedProject of sharedProjectsData) {
+    if (!allProjects.find(p => p.id === sharedProject.id)) {
+      allProjects.push(sharedProject);
+    }
+  }
+
+  // Add shared docs that aren't already owned
+  for (const sharedDoc of sharedYourDocsData) {
+    if (!allYourDocs.find(d => d.id === sharedDoc.id)) {
+      allYourDocs.push(sharedDoc);
+    }
+  }
+
   return {
-    projects,
-    yourDocs,
+    projects: allProjects,
+    yourDocs: allYourDocs,
   };
 }
 
@@ -225,11 +289,78 @@ export async function getAllYourDocsNav(userId: string): Promise<YourDocData[]> 
 }
 
 /**
- * NAV-ONLY: Get projects + your docs WITHOUT sections content for a specific user.
+ * NAV-ONLY: Get projects + your docs WITHOUT sections content for a specific user, including shared items.
  */
 export async function getAllDocsNavData(userId: string): Promise<DocsData> {
-  const [projects, yourDocs] = await Promise.all([getAllProjectsNav(userId), getAllYourDocsNav(userId)]);
-  return { projects, yourDocs };
+  const [ownedProjects, ownedYourDocs, sharedProjects, sharedYourDocs] = await Promise.all([
+    getAllProjectsNav(userId),
+    getAllYourDocsNav(userId),
+    getSharedProjects(userId),
+    getSharedDocuments(userId),
+  ]);
+
+  // Convert shared projects to ProjectData format (nav-only)
+  const sharedProjectsData: ProjectData[] = sharedProjects.map(project => ({
+    id: project.id,
+    label: project.label,
+    title: project.title,
+    description: project.description || undefined,
+    lastUpdated: project.lastUpdated,
+    documents: project.documents.map(doc => ({
+      id: doc.id,
+      label: doc.label,
+      title: doc.title,
+      description: doc.description || undefined,
+      lastUpdated: doc.lastUpdated,
+      content: {
+        pages: doc.pages.map(page => ({
+          id: page.id,
+          title: page.title,
+          pageNumber: page.pageNumber,
+          sections: [], // nav-only
+        })),
+      },
+    })),
+  }));
+
+  // Convert shared documents to YourDocData format (nav-only)
+  const sharedYourDocsData: YourDocData[] = sharedYourDocs
+    .filter(doc => !doc.projectId) // Only include documents without projects
+    .map(doc => ({
+      id: doc.id,
+      label: doc.label,
+      title: doc.title,
+      description: doc.description || undefined,
+      lastUpdated: doc.lastUpdated,
+      content: {
+        pages: doc.pages.map(page => ({
+          id: page.id,
+          title: page.title,
+          pageNumber: page.pageNumber,
+          sections: [], // nav-only
+        })),
+      },
+    }));
+
+  // Merge owned and shared items (avoid duplicates)
+  const allProjects = [...ownedProjects];
+  const allYourDocs = [...ownedYourDocs];
+  
+  // Add shared projects that aren't already owned
+  for (const sharedProject of sharedProjectsData) {
+    if (!allProjects.find(p => p.id === sharedProject.id)) {
+      allProjects.push(sharedProject);
+    }
+  }
+
+  // Add shared docs that aren't already owned
+  for (const sharedDoc of sharedYourDocsData) {
+    if (!allYourDocs.find(d => d.id === sharedDoc.id)) {
+      allYourDocs.push(sharedDoc);
+    }
+  }
+
+  return { projects: allProjects, yourDocs: allYourDocs };
 }
 
 /**

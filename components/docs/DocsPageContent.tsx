@@ -11,6 +11,7 @@ import { useState, useEffect, useRef, useMemo, memo, useCallback, useTransition 
 import { useRouter } from 'next/navigation';
 import { useCreateDoc } from './CreateDocHandler';
 import { useAddPage } from './AddPageHandler';
+import { ShareModal } from './ShareModal';
 import dynamic from 'next/dynamic';
 
 // Dynamically import DocEditor to avoid SSR issues with Tiptap
@@ -102,6 +103,17 @@ const DocsPageContentComponent = ({
   const isSavingRef = useRef(false);
   const { handleCreateDoc, CreateDocModal } = useCreateDoc();
   const { handleAddPage, AddPageModal } = useAddPage();
+  
+  // Share modal state
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareItemId, setShareItemId] = useState<string>('');
+  const [shareItemName, setShareItemName] = useState<string>('');
+
+  const handleShareDocument = (documentId: string, documentName: string) => {
+    setShareItemId(documentId);
+    setShareItemName(documentName);
+    setShareModalOpen(true);
+  };
   
   // Use transition to handle navigation smoothly
   const [isPending, startTransition] = useTransition();
@@ -746,6 +758,7 @@ const DocsPageContentComponent = ({
           activeId={activeTocId}
           onAddPage={() => handleAddPage(document.id, document.title, projectId)}
           onEditPage={() => setIsEditing(true)}
+          onShare={() => handleShareDocument(document.id, document.title)}
           projectName={projectName}
           pages={document.pages.map(p => ({
             id: p.id,
@@ -755,6 +768,13 @@ const DocsPageContentComponent = ({
           currentPageId={page.id}
         />
         <AddPageModal />
+        <ShareModal
+          isOpen={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          type="document"
+          itemId={shareItemId}
+          itemName={shareItemName}
+        />
       </div>
     );
   }

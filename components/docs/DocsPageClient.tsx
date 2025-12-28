@@ -12,6 +12,8 @@ import { isProject, isPage } from '@/lib/docs';
 import { useCreateProject } from './CreateProjectHandler';
 import { useCreateDoc } from './CreateDocHandler';
 import { useRenameDelete } from './useRenameDelete';
+import { ShareModal } from './ShareModal';
+import { useState } from 'react';
 
 interface DocsPageClientProps {
   sidebarItems: NavItem[];
@@ -38,6 +40,19 @@ export function DocsPageClient({
     RenameModal: RenameModalComponent,
     DeleteModal: DeleteModalComponent,
   } = useRenameDelete();
+
+  // Share modal state
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareType, setShareType] = useState<'document' | 'project'>('project');
+  const [shareItemId, setShareItemId] = useState<string>('');
+  const [shareItemName, setShareItemName] = useState<string>('');
+
+  const handleShare = (type: 'document' | 'project', itemId: string, itemName: string) => {
+    setShareType(type);
+    setShareItemId(itemId);
+    setShareItemName(itemName);
+    setShareModalOpen(true);
+  };
 
   // If page not found, show 404
   if (!currentPage) {
@@ -103,30 +118,53 @@ export function DocsPageClient({
           <div className="mt-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-gray-900">Documents</h2>
-              <button
-                onClick={() => {
-                  // Get project ID from currentPage (which is a ProcessedProject)
-                  handleCreateDoc(currentPage.id, currentPage.title);
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
-                aria-label="Create new document"
-                title="Create new document"
-              >
-                <svg
-                  className="w-4 h-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleShare('project', currentPage.id, currentPage.title)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
+                  aria-label="Share project"
+                  title="Share project"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                Add Document
-              </button>
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                    />
+                  </svg>
+                  Share
+                </button>
+                <button
+                  onClick={() => {
+                    // Get project ID from currentPage (which is a ProcessedProject)
+                    handleCreateDoc(currentPage.id, currentPage.title);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
+                  aria-label="Create new document"
+                  title="Create new document"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Add Document
+                </button>
+              </div>
             </div>
             {currentPage.documents && currentPage.documents.length > 0 ? (
               <ul className="space-y-2">
@@ -223,6 +261,13 @@ export function DocsPageClient({
       <CreateDocModal />
       <RenameModalComponent />
       <DeleteModalComponent />
+      <ShareModal
+        isOpen={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        type={shareType}
+        itemId={shareItemId}
+        itemName={shareItemName}
+      />
     </>
   );
 }

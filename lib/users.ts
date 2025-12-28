@@ -1,5 +1,6 @@
 import { prisma } from './db';
 import { currentUser } from '@clerk/nextjs/server';
+import { acceptPendingShares } from './shares';
 
 export interface ClerkUserData {
   id: string;
@@ -12,12 +13,15 @@ export interface ClerkUserData {
 /**
  * Sync user data from Clerk to the database
  * Creates a new user if they don't exist, or updates existing user
+ * Also accepts any pending share invitations for this user
  */
 export async function syncUserFromClerk(clerkUser: ClerkUserData) {
   const email = clerkUser.email_addresses[0]?.email_address;
   if (!email) {
     throw new Error('User email is required');
   }
+
+  const isNewUser = !(await prisma.user.findUnique({ where: { clerkId: clerkUser.id } }));
 
   const user = await prisma.user.upsert({
     where: { clerkId: clerkUser.id },
@@ -36,6 +40,11 @@ export async function syncUserFromClerk(clerkUser: ClerkUserData) {
       imageUrl: clerkUser.image_url || null,
     },
   });
+
+  // If this is a new user or email changed, accept any pending shares
+  if (isNewUser || user.email !== email) {
+    await acceptPendingShares(user.email, user.id);
+  }
 
   return user;
 }
