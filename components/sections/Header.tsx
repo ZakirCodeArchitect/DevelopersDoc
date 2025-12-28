@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Container } from '../ui/Container';
 import { Input } from '../ui/input';
-import { SignInButton, SignUpButton, UserButton, SignedIn, SignedOut } from '@clerk/nextjs';
+import { SignUpButton, UserButton, SignedIn, SignedOut } from '@clerk/nextjs';
 
 interface NavLink {
   label: string;
@@ -138,13 +138,22 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Authentication Buttons */}
           <div className="flex items-center gap-3">
             <SignedOut>
-              <SignInButton mode="redirect">
-                <button type="button" className="text-sm font-medium text-foreground/70 hover:text-foreground transition-colors px-3 py-1.5 rounded-md hover:bg-background/50">
-                  Sign In
-                </button>
-              </SignInButton>
               <SignUpButton mode="redirect">
-                <button type="button" className="text-sm font-medium text-white bg-[#6c47ff] hover:bg-[#5a3ae6] transition-colors px-4 py-1.5 rounded-md">
+                <button 
+                  type="button" 
+                  className="text-xs font-semibold transition-all duration-200 px-3.5 py-1.5 rounded-md border-2 hover:shadow-md"
+                  style={{ 
+                    backgroundColor: '#F5E6D3',
+                    borderColor: '#B1521C',
+                    color: '#B1521C',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#EDD4B8';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F5E6D3';
+                  }}
+                >
                   Sign Up
                 </button>
               </SignUpButton>

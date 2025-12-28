@@ -1,4 +1,4 @@
-import { SignIn } from '@clerk/nextjs'
+import { SignUp } from '@clerk/nextjs'
 
 export default function Page() {
   return (
@@ -9,7 +9,7 @@ export default function Page() {
           <span className="font-normal" style={{ color: '#B1521C', fontFamily: 'var(--font-shadows-into-light), cursive' }}>Developer Docs</span>
         </h1>
         <div className="w-full flex justify-center">
-          <SignIn 
+          <SignUp 
             appearance={{
               elements: {
                 rootBox: "w-full flex justify-center",
