@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useState, useEffect, memo, useRef } from 'react';
+import React, { useState, useEffect, memo, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ContextMenu } from './ContextMenu';
 
@@ -98,6 +98,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   onRenameDoc,
   onDeleteDoc,
 }) => {
+  const router = useRouter();
   
   // Get initial pathname from window.location to avoid usePathname() re-renders
   const getInitialPathname = () => {
@@ -127,6 +128,18 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  // Prefetch strategy:
+  // - Automatic Link prefetch across a large sidebar can trigger MANY background RSC fetches,
+  //   which looks like "latency" and can overload the dev server/DB.
+  // - Instead, prefetch only the hovered/focused link (one at a time).
+  const prefetchedHrefsRef = useRef<Set<string>>(new Set());
+  const prefetchHref = useCallback((href?: string) => {
+    if (!href) return;
+    if (prefetchedHrefsRef.current.has(href)) return;
+    prefetchedHrefsRef.current.add(href);
+    router.prefetch(href);
+  }, [router]);
 
   // After mount: restore expanded state from localStorage and ensure current route is visible.
   // This will cause at most ONE re-render after hydration (acceptable) and prevents hydration mismatch.
@@ -377,6 +390,8 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
                 href={item.href}
                 prefetch={false}
                 data-nav-href={item.href}
+                onMouseEnter={() => prefetchHref(item.href)}
+                onFocus={() => prefetchHref(item.href)}
                 onClick={(e) => {
                   // Get current path to check if this is the active project
                   const currentPathValue = currentPathProp ?? (typeof window !== 'undefined' ? window.location.pathname : '');
@@ -462,6 +477,8 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
               href={item.href}
                 prefetch={false}
               data-nav-href={item.href}
+              onMouseEnter={() => prefetchHref(item.href)}
+              onFocus={() => prefetchHref(item.href)}
               className={cn(
                 'py-1.5 pr-2 text-sm rounded-md truncate flex-1 min-w-0',
                 level > 1 && isProjectDocument ? 'pl-2' : 'px-2',

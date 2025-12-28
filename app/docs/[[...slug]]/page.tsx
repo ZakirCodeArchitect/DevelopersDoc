@@ -8,7 +8,7 @@ import {
   type ProcessedYourDoc,
   type ProcessedPage,
 } from '@/lib/docs';
-import { getAllDocsData } from '@/lib/db';
+import { getAllDocsNavData, getPageWithSections } from '@/lib/db';
 import { DocsPageContent } from '@/components/docs/DocsPageContent';
 import { DocsLandingPage } from '@/components/docs/DocsLandingPage';
 import { redirect } from 'next/navigation';
@@ -16,7 +16,8 @@ import { cache } from 'react';
 
 // Cache the processed data to prevent recreating objects on every navigation
 const getProcessedDocsData = cache(async () => {
-  const data = await getAllDocsData();
+  // NAV-ONLY dataset (no sections) for fast navigation and small payloads
+  const data = await getAllDocsNavData();
   const processedProjects = processProjects(data.projects);
   const processedYourDocs = processYourDocs(data.yourDocs);
   
@@ -58,6 +59,26 @@ export default async function DocsPage({ params }: DocsPageProps) {
     const doc = currentPage as ProcessedDocument | ProcessedYourDoc;
     if (doc.pages.length > 0) {
       redirect(doc.pages[0].href);
+    }
+  }
+
+  // If this is a page, fetch its sections only (content) and patch into the processed page.
+  // This avoids loading ALL sections for ALL docs on every navigation.
+  if (currentPage && isPage(currentPage)) {
+    const fullPage = await getPageWithSections(currentPage.id);
+    if (fullPage) {
+      const toc = (fullPage.sections || []).map((section: any) => ({
+        id: section.id,
+        label: section.title,
+        level: 1,
+      }));
+      currentPage = {
+        ...currentPage,
+        title: fullPage.title,
+        pageNumber: fullPage.pageNumber,
+        sections: fullPage.sections,
+        toc,
+      } satisfies ProcessedPage;
     }
   }
 

@@ -7,8 +7,8 @@ import { InteractiveButton } from './InteractiveButton';
 import type { NavItem } from './DocSidebar';
 import type { TocItem } from './DocTableOfContents';
 import type { NavLink } from './DocNavigation';
-import type { ProcessedDocument, ProcessedProject, ProcessedYourDoc } from '@/lib/docs';
-import { isProject, isProjectDocument, getProjectDocumentNavigation } from '@/lib/docs';
+import type { ProcessedDocument, ProcessedProject, ProcessedYourDoc, ProcessedPage, DocumentSection } from '@/lib/docs';
+import { isProject, isPage } from '@/lib/docs';
 import { useCreateProject } from './CreateProjectHandler';
 import { useCreateDoc } from './CreateDocHandler';
 import { useRenameDelete } from './useRenameDelete';
@@ -154,27 +154,29 @@ export function DocsPageClient({
     );
   }
 
-  // Handle document pages (both project documents and "Your Docs")
-  const document = currentPage as ProcessedDocument | ProcessedYourDoc;
-  const codeBlocks = document.content.codeBlocks || [];
-  const tocItems: TocItem[] = document.toc;
+  // Handle a page view (this app redirects document hrefs to first page),
+  // but keep a safe fallback for direct document objects.
+  const page: ProcessedPage | null = isPage(currentPage)
+    ? (currentPage as ProcessedPage)
+    : ('pages' in (currentPage as any) && (currentPage as any).pages?.length
+        ? ((currentPage as any).pages[0] as ProcessedPage)
+        : null);
 
-  // Get navigation for project documents only
-  let previous: NavLink | undefined;
-  let next: NavLink | undefined;
-  if (isProjectDocument(document, processedProjects)) {
-    const nav = getProjectDocumentNavigation(document as ProcessedDocument, processedProjects);
-    previous = nav.previous || undefined;
-    next = nav.next || undefined;
-  }
+  const tocItems: TocItem[] = page?.toc ?? [];
+  const codeBlocks: any[] = []; // Code blocks are not part of the processed document types in DB mode
+
+  // Navigation is handled at the page level in the new DB-backed flow.
+  // Keep these undefined here to avoid incorrect type assumptions.
+  const previous: NavLink | undefined = page?.navigation?.previous ?? undefined;
+  const next: NavLink | undefined = page?.navigation?.next ?? undefined;
 
   return (
     <>
       <DocLayout
         sidebarItems={sidebarItems}
         currentPath={currentPath}
-        title={document.title}
-        lastUpdated={document.lastUpdated}
+        title={(page as any)?.title ?? ''}
+        lastUpdated={(currentPage as any)?.lastUpdated ?? ''}
         tocItems={tocItems}
         previous={previous}
         next={next}
@@ -197,7 +199,7 @@ export function DocsPageClient({
         ))}
 
         {/* Render sections */}
-        {document.content.sections.map((section) => (
+        {(page?.sections ?? []).map((section: DocumentSection) => (
           <section key={section.id} id={section.id} className="mt-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.title}</h2>
             {section.type === 'text' && Array.isArray(section.content) && (
