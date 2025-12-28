@@ -24,6 +24,27 @@ export function DocsLayoutClient({
 }: DocsLayoutClientProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showExpandButton, setShowExpandButton] = useState(false);
+  
+  // CRITICAL: Memoize onToggleCollapse to prevent sidebar re-renders
+  const handleToggleCollapse = useCallback(() => {
+    console.log('🖱️ [CLICK] Sidebar collapse toggle clicked');
+    setIsSidebarCollapsed(prev => {
+      const newValue = !prev;
+      
+      // If collapsing, show expand button after animation completes (300ms)
+      if (newValue) {
+        setShowExpandButton(false);
+        setTimeout(() => {
+          setShowExpandButton(true);
+        }, 300);
+      } else {
+        // If expanding, hide button immediately
+        setShowExpandButton(false);
+      }
+      
+      return newValue;
+    });
+  }, []);
   const { handleCreateProject, CreateProjectModal } = useCreateProject();
   const { handleCreateDoc, CreateDocModal } = useCreateDoc();
   const {
@@ -35,10 +56,11 @@ export function DocsLayoutClient({
     DeleteModal: DeleteModalComponent,
   } = useRenameDelete();
 
-  // Memoize sidebar items to prevent re-renders when server component re-executes
+  // ULTRA-STABLE: Memoize sidebar items to prevent re-renders when server component re-executes
   // Use refs to track previous values and only update when structure actually changes
   const prevSidebarItemsRef = useRef<NavItem[]>(sidebarItems);
   const prevKeyRef = useRef<string>('');
+  const stableItemsRef = useRef<NavItem[]>(sidebarItems);
   
   // Create a deep comparison key based on the entire structure
   const buildStructureKey = useCallback((items: NavItem[]): string => {
@@ -55,18 +77,20 @@ export function DocsLayoutClient({
   const currentKey = buildStructureKey(sidebarItems);
   const structureChanged = currentKey !== prevKeyRef.current;
   
-  // Only update if structure actually changed
+  // Only update if structure actually changed - otherwise return stable reference
   const memoizedSidebarItems = useMemo(() => {
     if (structureChanged) {
       prevKeyRef.current = currentKey;
       prevSidebarItemsRef.current = sidebarItems;
+      stableItemsRef.current = sidebarItems;
       return sidebarItems;
     }
-    // Return previous reference if structure hasn't changed
-    return prevSidebarItemsRef.current;
+    // CRITICAL: Return the stable reference from ref, not from prevSidebarItemsRef
+    // This ensures React sees the same reference even if sidebarItems prop changes
+    return stableItemsRef.current;
   }, [sidebarItems, currentKey, structureChanged, buildStructureKey]);
 
-  // Use refs to store handlers - this prevents re-renders when handlers change
+  // ULTRA-STABLE: Use refs to store handlers - this prevents re-renders when handlers change
   const handlersRef = useRef({
     onCreateProject: handleCreateProject,
     onCreateDoc: handleCreateDoc,
@@ -88,15 +112,19 @@ export function DocsLayoutClient({
     };
   }, [handleCreateProject, handleCreateDoc, handleRenameProject, handleDeleteProject, handleRenameDoc, handleDeleteDoc]);
 
-  // Create stable handler wrappers that use the ref
-  const stableHandlers = useMemo(() => ({
+  // Create stable handler wrappers that use the ref - these NEVER change
+  // Using useRef instead of useMemo to ensure absolute stability
+  const stableHandlersRef = useRef({
     onCreateProject: (...args: Parameters<typeof handleCreateProject>) => handlersRef.current.onCreateProject(...args),
     onCreateDoc: (...args: Parameters<typeof handleCreateDoc>) => handlersRef.current.onCreateDoc(...args),
     onRenameProject: (...args: Parameters<typeof handleRenameProject>) => handlersRef.current.onRenameProject(...args),
     onDeleteProject: (...args: Parameters<typeof handleDeleteProject>) => handlersRef.current.onDeleteProject(...args),
     onRenameDoc: (...args: Parameters<typeof handleRenameDoc>) => handlersRef.current.onRenameDoc(...args),
     onDeleteDoc: (...args: Parameters<typeof handleDeleteDoc>) => handlersRef.current.onDeleteDoc(...args),
-  }), []); // Empty deps - these wrappers never change
+  });
+  
+  // Return the stable handlers from ref
+  const stableHandlers = stableHandlersRef.current;
 
   // DON'T memoize children - it changes on every navigation and that's expected
   // The sidebar is isolated and won't re-render when children changes
@@ -118,27 +146,7 @@ export function DocsLayoutClient({
         <StableSidebar
           items={memoizedSidebarItems}
           isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => {
-            console.log('🟢 [DEBUG] onToggleCollapse handler called in DocsLayoutClient');
-            console.log('🟢 [DEBUG] Current isSidebarCollapsed:', isSidebarCollapsed);
-            setIsSidebarCollapsed(prev => {
-              const newValue = !prev;
-              console.log('🟢 [DEBUG] Setting isSidebarCollapsed from', prev, 'to', newValue);
-              
-              // If collapsing, show expand button after animation completes (300ms)
-              if (newValue) {
-                setShowExpandButton(false);
-                setTimeout(() => {
-                  setShowExpandButton(true);
-                }, 300);
-              } else {
-                // If expanding, hide button immediately
-                setShowExpandButton(false);
-              }
-              
-              return newValue;
-            });
-          }}
+          onToggleCollapse={handleToggleCollapse}
           {...stableHandlers}
         />
         {/* Expand button when collapsed - positioned at same height as Dashboard item */}

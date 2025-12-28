@@ -3,6 +3,32 @@
 import { memo } from 'react';
 import { DocSidebar, NavItem } from './DocSidebar';
 
+// Deep comparison function for NavItem arrays (same as in DocSidebar)
+const deepCompareNavItems = (prev: NavItem[], next: NavItem[]): boolean => {
+  if (prev.length !== next.length) return false;
+  
+  for (let i = 0; i < prev.length; i++) {
+    const prevItem = prev[i];
+    const nextItem = next[i];
+    
+    if (prevItem.label !== nextItem.label || prevItem.href !== nextItem.href) {
+      return false;
+    }
+    
+    // Deep compare children recursively
+    if (prevItem.children && nextItem.children) {
+      if (!deepCompareNavItems(prevItem.children, nextItem.children)) {
+        return false;
+      }
+    } else if (prevItem.children !== nextItem.children) {
+      // One has children, the other doesn't
+      return false;
+    }
+  }
+  
+  return true;
+};
+
 interface StableSidebarProps {
   items: NavItem[];
   isCollapsed?: boolean;
@@ -15,17 +41,9 @@ interface StableSidebarProps {
   onDeleteDoc?: (docId: string, docName: string, projectId?: string) => void;
 }
 
-// Simple wrapper that never re-renders - DocSidebar handles pathname internally
+// Memoized wrapper that prevents unnecessary re-renders
+// Only re-renders when visual props (items structure or collapse state) actually change
 export const StableSidebar = memo((props: StableSidebarProps) => {
-  // Debug: Log props being passed
-  console.log('🟠 [DEBUG] StableSidebar rendering with props:', {
-    isCollapsed: props.isCollapsed,
-    hasOnToggleCollapse: !!props.onToggleCollapse,
-    itemsCount: props.items.length,
-  });
-  
-  // DocSidebar will use usePathname() internally, so we don't need to pass currentPath
-  // This prevents this component from re-rendering when pathname changes
   return (
     <DocSidebar
       items={props.items}
@@ -40,25 +58,23 @@ export const StableSidebar = memo((props: StableSidebarProps) => {
     />
   );
 }, (prevProps, nextProps) => {
-  // Only re-render if items, collapse state, or handlers change
-  if (prevProps.items !== nextProps.items) {
-    return false;
-  }
+  // Only re-render if visual props changed
+  // 1. Check collapse state
   if (prevProps.isCollapsed !== nextProps.isCollapsed) {
-    return false;
+    return false; // Allow re-render
   }
-  if (
-    prevProps.onCreateProject !== nextProps.onCreateProject ||
-    prevProps.onCreateDoc !== nextProps.onCreateDoc ||
-    prevProps.onRenameProject !== nextProps.onRenameProject ||
-    prevProps.onDeleteProject !== nextProps.onDeleteProject ||
-    prevProps.onRenameDoc !== nextProps.onRenameDoc ||
-    prevProps.onDeleteDoc !== nextProps.onDeleteDoc ||
-    prevProps.onToggleCollapse !== nextProps.onToggleCollapse
-  ) {
-    return false;
+  
+  // 2. Check items - do deep comparison (reference might change but structure same)
+  if (prevProps.items !== nextProps.items) {
+    // Reference changed - check if structure actually changed
+    if (!deepCompareNavItems(prevProps.items, nextProps.items)) {
+      return false; // Structure changed - allow re-render
+    }
+    // Structure same, only reference changed - prevent re-render
   }
-  return true; // Prevent re-render
+  
+  // All visual props are same - prevent re-render (ignore handler changes)
+  return true;
 });
 
 StableSidebar.displayName = 'StableSidebar';

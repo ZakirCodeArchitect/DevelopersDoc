@@ -310,7 +310,7 @@ const DocsPageContentComponent = ({
             <button
               onClick={() => {
                 // TODO: Implement Manage Project logic
-                console.log('Manage Project clicked');
+                console.log('🖱️ [CLICK] Manage Project clicked');
               }}
               className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
             >
@@ -350,12 +350,7 @@ const DocsPageContentComponent = ({
   const page = optimisticPage || basePage;
   const document = isPageView && page ? getDocumentForPage(page, processedProjects, processedYourDocs) : null;
 
-  // Debug: Log when optimistic page is being used
-  useEffect(() => {
-    if (optimisticPage) {
-      console.log('✅ [Optimistic Update] Using optimistic page:', optimisticPage.id, optimisticPage.title);
-    }
-  }, [optimisticPage]);
+  // Optimistic page tracking removed - no debug logs needed
 
   // Clear optimistic page when server data is refreshed and matches
   // Only clear if the sections actually match (server has caught up)
@@ -400,45 +395,7 @@ const DocsPageContentComponent = ({
     if (typeof window === 'undefined' || !window.document) return;
     if (!window.document.querySelectorAll || typeof window.document.querySelectorAll !== 'function') return;
     
-    setTimeout(() => {
-      try {
-        const domDocument = window.document;
-        const proseElements = domDocument.querySelectorAll('.prose, .preserve-whitespace');
-        console.log('[DEBUG DOM Check] Found', proseElements.length, 'prose elements');
-        
-        proseElements.forEach((el, idx) => {
-          const paragraphs = el.querySelectorAll('p');
-          console.log(`[DEBUG DOM Check] Element ${idx} has ${paragraphs.length} paragraphs`);
-          
-          paragraphs.forEach((p, pIdx) => {
-            const text = p.textContent || '';
-            const html = p.innerHTML;
-            const hasMultipleSpaces = / {2,}/.test(text);
-            const hasNbsp = html.includes('&nbsp;');
-            const computedStyle = window.getComputedStyle(p);
-            const whiteSpace = computedStyle.whiteSpace;
-            const spaceCount = (text.match(/ /g) || []).length;
-            const nbspCount = (html.match(/&nbsp;/g) || []).length;
-            
-            // Log ALL paragraphs, not just those with multiple spaces
-            console.log(`[DEBUG DOM Check] Paragraph ${idx}-${pIdx}:`, {
-              text: JSON.stringify(text),
-              textLength: text.length,
-              html: html,
-              htmlLength: html.length,
-              hasMultipleSpaces,
-              hasNbsp,
-              whiteSpace,
-              spaceCount,
-              nbspCount,
-              rawHTML: p.outerHTML.substring(0, 300)
-            });
-          });
-        });
-      } catch (error) {
-        console.error('[DEBUG DOM Check] Error:', error);
-      }
-    }, 1000);
+    // DOM check removed - no longer needed
   }, [page, isEditing, currentPath]);
 
   // Get project info if it's a project document
@@ -536,39 +493,12 @@ const DocsPageContentComponent = ({
 
   // Handle save for editor
   const handleSaveContent = useCallback(async (content: any) => {
-    console.log('🔵 [DEBUG handleSaveContent] SAVE BUTTON CLICKED - Starting save process');
-    console.log('🔵 [DEBUG handleSaveContent] Page:', page?.id);
-    console.log('🔵 [DEBUG handleSaveContent] Document:', document?.id);
+    console.log('🖱️ [CLICK] Save button clicked');
     
     if (!page || !document) {
-      console.error('❌ [DEBUG handleSaveContent] Missing page or document!', { page, document });
+      console.error('❌ Save failed: Missing page or document!', { page, document });
       return;
     }
-
-    // DEBUG: Log TipTap JSON content before saving
-    console.log('🔵 [DEBUG handleSaveContent] TipTap JSON content:', JSON.stringify(content, null, 2));
-    
-    // DEBUG: Extract and log ALL text nodes to see what TipTap is sending
-    const findTextNodes = (node: any, path: string = ''): void => {
-      if (node.type === 'text' && node.text) {
-        // Log ALL text nodes, not just those with multiple spaces
-        console.log(`[DEBUG handleSaveContent] Text node at ${path}:`, {
-          text: JSON.stringify(node.text),
-          textLength: node.text.length,
-          spaceCount: (node.text.match(/ /g) || []).length,
-          hasMultipleSpaces: node.text.includes('  '),
-          multipleSpaces: node.text.match(/ {2,}/g),
-          rawText: node.text
-        });
-      }
-      if (node.content && Array.isArray(node.content)) {
-        node.content.forEach((child: any, idx: number) => {
-          findTextNodes(child, `${path}/${node.type}[${idx}]`);
-        });
-      }
-    };
-    console.log('[DEBUG handleSaveContent] Full content structure:', content);
-    findTextNodes({ type: 'doc', content: content.content || [] }, 'doc');
 
     try {
       const apiUrl = `/api/docs/${document.id}/pages/${page.id}`;
@@ -595,7 +525,6 @@ const DocsPageContentComponent = ({
       }
 
       const data = await response.json();
-      console.log('✅ [DEBUG handleSaveContent] Save successful! Response:', data);
       
       // Convert API response to ProcessedPage format for optimistic update
       if (data.page && page) {
@@ -746,19 +675,7 @@ const DocsPageContentComponent = ({
                         <div 
                           className="prose prose-gray max-w-none preserve-whitespace"
                           dangerouslySetInnerHTML={{ 
-                            __html: (() => {
-                              const html = page.sections[0].content.join('');
-                              // DEBUG: Log HTML content being rendered
-                              if (html.includes('&nbsp;') || html.match(/ {2,}/)) {
-                                console.log('[DEBUG DocsPageContent] Rendering description HTML:', {
-                                  htmlPreview: html.substring(0, 300),
-                                  containsNbsp: html.includes('&nbsp;'),
-                                  containsMultipleSpaces: / {2,}/.test(html),
-                                  htmlLength: html.length
-                                });
-                              }
-                              return html;
-                            })()
+                            __html: page.sections[0].content.join('')
                           }}
                         />
                       )}
@@ -791,22 +708,7 @@ const DocsPageContentComponent = ({
                           <div 
                             className="prose prose-gray max-w-none preserve-whitespace"
                             dangerouslySetInnerHTML={{ 
-                              __html: (() => {
-                                // Join all content, preserving empty paragraphs for spacing
-                                const html = section.content.join('');
-                                // DEBUG: Log HTML content being rendered
-                                if (html.includes('&nbsp;') || html.match(/ {2,}/) || html.includes('<p></p>')) {
-                                  console.log('[DEBUG DocsPageContent] Rendering HTML section:', {
-                                    sectionId: section.id,
-                                    htmlPreview: html.substring(0, 300),
-                                    containsNbsp: html.includes('&nbsp;'),
-                                    containsMultipleSpaces: / {2,}/.test(html),
-                                    containsEmptyParagraphs: html.includes('<p></p>'),
-                                    htmlLength: html.length
-                                  });
-                                }
-                                return html;
-                              })()
+                              __html: section.content.join('')
                             }}
                           />
                         )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { RenameModal } from './RenameModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 
@@ -24,7 +24,6 @@ export function useRenameDelete() {
 
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
-  const pathname = usePathname();
 
   const handleRenameProject = useCallback((projectId: string, currentName: string) => {
     setRenameModal({
@@ -93,27 +92,17 @@ export function useRenameDelete() {
       
       // Navigate to new URL if href changed
       if (data.newHref && renameModal.type === 'document') {
-        // Use requestAnimationFrame to ensure refresh happens after navigation
+        // Navigate first, then refresh once after navigation completes
         router.push(data.newHref);
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            router.refresh();
-          });
-        });
+        // Single refresh after navigation - wait for route to update
+        setTimeout(() => {
+          router.refresh();
+        }, 100);
       } else {
-        // Refresh immediately if no navigation needed (e.g., renaming while on project page)
-        // Use double requestAnimationFrame to ensure it happens after any pending state updates
-        // Also refresh the current pathname to ensure cache invalidation
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            // Force refresh by calling refresh multiple times if needed
-            router.refresh();
-            // Small delay to ensure the refresh is processed
-            setTimeout(() => {
-              router.refresh();
-            }, 50);
-          });
-        });
+        // Single refresh if no navigation needed - debounced to avoid multiple refreshes
+        setTimeout(() => {
+          router.refresh();
+        }, 100);
       }
     } catch (error) {
       console.error('Error renaming:', error);
@@ -153,64 +142,33 @@ export function useRenameDelete() {
       if (deleteModal.type === 'project') {
         // Navigate to docs home
         router.push('/docs');
-        // Wait for navigation, then refresh multiple times to ensure cache is cleared
+        // Single refresh after navigation completes
         setTimeout(() => {
           router.refresh();
-          setTimeout(() => {
-            router.refresh();
-          }, 100);
         }, 200);
       } else if (deleteModal.projectId) {
         // For document deletion, check if we're already on the project page
         const targetPath = `/docs/projects/${deleteModal.projectId}`;
-        const isOnTargetPage = pathname === targetPath;
+        const isOnTargetPage =
+          typeof window !== 'undefined' ? window.location.pathname === targetPath : false;
         
         if (isOnTargetPage) {
-          // We're already on the project page, force multiple refreshes to clear cache
-          // Use a combination of refresh and a small delay to ensure cache invalidation
-          router.refresh();
+          // We're already on the project page - single refresh
           setTimeout(() => {
             router.refresh();
-            // Third refresh to ensure cache is fully cleared
-            setTimeout(() => {
-              router.refresh();
-              // If still not working after 1 second, force a hard reload as last resort
-              setTimeout(() => {
-                if (document.visibilityState === 'visible') {
-                  window.location.reload();
-                }
-              }, 1000);
-            }, 150);
           }, 100);
         } else {
-          // Navigate to project page first, then refresh
+          // Navigate to project page first, then refresh once
           router.replace(targetPath);
-          // Wait for navigation to complete, then refresh multiple times
           setTimeout(() => {
             router.refresh();
-            setTimeout(() => {
-              router.refresh();
-              // Third refresh to ensure cache is fully cleared
-              setTimeout(() => {
-                router.refresh();
-                // If still not working after 1.5 seconds, force a hard reload as last resort
-                setTimeout(() => {
-                  if (document.visibilityState === 'visible') {
-                    window.location.reload();
-                  }
-                }, 1500);
-              }, 150);
-            }, 150);
-          }, 400);
+          }, 300);
         }
       } else {
         // For "Your Docs" deletion
         router.push('/docs');
         setTimeout(() => {
           router.refresh();
-          setTimeout(() => {
-            router.refresh();
-          }, 100);
         }, 200);
       }
     } catch (error) {

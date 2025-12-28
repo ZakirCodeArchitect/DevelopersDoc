@@ -21,11 +21,6 @@ export function useCreateDoc() {
 
   const handleCloseModal = useCallback(() => {
     if (!isLoading) {
-      console.log('[CreateDocHandler DEBUG] 🔴 HANDLER: Closing modal', {
-        stage: 'HANDLER_CLOSING_MODAL',
-        isLoading,
-        isModalOpen: true
-      });
       setIsModalOpen(false);
       setProjectId(null);
       setProjectName(null);
@@ -33,14 +28,6 @@ export function useCreateDoc() {
   }, [isLoading]);
 
   const handleSubmit = useCallback(async (name: string, description: string) => {
-    console.log('[CreateDocHandler DEBUG] 🟡 HANDLER: Starting submission', {
-      stage: 'HANDLER_STARTING_SUBMISSION',
-      name,
-      description,
-      isLoading: false,
-      willSetLoading: true
-    });
-    
     // CRITICAL: Store form values in handler state before setting loading
     // This ensures they persist even if modal component remounts
     setStoredFormValues({ name, description });
@@ -72,19 +59,16 @@ export function useCreateDoc() {
       
       // Small delay to ensure form values stay visible during navigation
       setTimeout(() => {
-        console.log('[CreateDocHandler DEBUG] 🔴 HANDLER: Closing modal after success', {
-          stage: 'HANDLER_CLOSING_AFTER_SUCCESS',
-          isLoading: true,
-          willClose: true
-        });
         setIsLoading(false);
         setIsModalOpen(false);
         setProjectId(null);
         setProjectName(null);
         setStoredFormValues(null); // Clear stored values after closing
         
-        // Refresh the page to show the new document in the sidebar
-        router.refresh();
+        // Single refresh after navigation completes to show the new document in the sidebar
+        setTimeout(() => {
+          router.refresh();
+        }, 100);
       }, 100);
     } catch (error) {
       console.error('[CreateDocHandler] Error creating document:', error);

@@ -50,31 +50,10 @@ const CreateDocModalComponent: React.FC<CreateDocModalProps> = ({
     // Also don't clear if form has values (extra safeguard)
     // Don't clear on first render if modal is already open (prevents clearing during remount)
     if (isOpening && !isSubmitting && !docName && !description && !isFirstRenderRef.current) {
-      // [DEBUG] Stage 4: When cleared (form reset on open)
-      console.log('[CreateDocModal DEBUG] 🔵 FORM CLEARED', {
-        stage: 'FORM_CLEARED',
-        docName: '',
-        description: '',
-        isFormCleared: true,
-        expected: true,
-        status: '✅ OK: Form cleared for new entry'
-      });
-      
       setDocName('');
       setDescription('');
       setErrors({});
       setInternalIsSubmitting(false);
-    } else if (isOpening && (isSubmitting || docName || description || isFirstRenderRef.current)) {
-      // [DEBUG] Prevented clearing during submission or when form has values
-      console.log('[CreateDocModal DEBUG] 🛡️ PREVENTED FORM CLEAR', {
-        stage: 'PREVENTED_CLEAR',
-        isOpening,
-        isSubmitting,
-        hasDocName: !!docName,
-        hasDescription: !!description,
-        isFirstRender: isFirstRenderRef.current,
-        reason: isFirstRenderRef.current ? 'first render' : (isSubmitting ? 'submitting' : 'has values')
-      });
     }
     
     prevIsOpenRef.current = isOpen;
@@ -93,12 +72,6 @@ const CreateDocModalComponent: React.FC<CreateDocModalProps> = ({
   // CRITICAL: Restore form values from handler's stored values if component remounted
   React.useEffect(() => {
     if (storedFormValues && (!docName || !description)) {
-      console.log('[CreateDocModal DEBUG] 🔧 RESTORING FROM HANDLER STORAGE', {
-        stage: 'RESTORING_FROM_HANDLER',
-        storedFormValues,
-        currentDocName: docName,
-        currentDescription: description
-      });
       if (!docName && storedFormValues.name) {
         setDocName(storedFormValues.name);
       }
@@ -108,43 +81,21 @@ const CreateDocModalComponent: React.FC<CreateDocModalProps> = ({
     }
   }, [storedFormValues, docName, description]);
   
-  // [DEBUG] Stage 2: When creating (isSubmitting becomes true)
+  // Restore form values if form is empty when submitting
   useEffect(() => {
     if (isSubmitting) {
       // CRITICAL: If form is empty, try to restore from handler's stored values first
       if (!docName && !description) {
         if (storedFormValues) {
-          console.log('[CreateDocModal DEBUG] 🔧 RECOVERING FROM HANDLER STORAGE', {
-            stage: 'RECOVERING_FROM_HANDLER',
-            storedFormValues
-          });
           setDocName(storedFormValues.name);
           setDescription(storedFormValues.description);
-          return; // Will log after values are restored
+          return;
         } else if (formValuesRef.current) {
-          console.log('[CreateDocModal DEBUG] 🔧 RECOVERING FORM VALUES FROM REF', {
-            stage: 'RECOVERING_VALUES',
-            storedValues: formValuesRef.current
-          });
           setDocName(formValuesRef.current.docName);
           setDescription(formValuesRef.current.description);
           return;
         }
       }
-      
-      const isFormCleared = !docName.trim() && !description.trim();
-      console.log('[CreateDocModal DEBUG] 🟡 CREATING (SUBMITTING)', {
-        stage: 'CREATING',
-        docName,
-        description,
-        hasStoredValues: !!storedFormValues,
-        storedFormValues,
-        hasRefValues: !!formValuesRef.current,
-        storedRefValues: formValuesRef.current,
-        isFormCleared,
-        expected: false,
-        status: isFormCleared ? '❌ ERROR: Form should NOT be cleared' : '✅ OK: Form has values'
-      });
     }
   }, [isSubmitting, docName, description, storedFormValues]);
 
@@ -189,16 +140,7 @@ const CreateDocModalComponent: React.FC<CreateDocModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (validate() && !isSubmitting) {
-      // [DEBUG] Stage 1: Create button clicked
-      const isFormCleared = !docName.trim() && !description.trim();
-      console.log('[CreateDocModal DEBUG] 🟢 CREATE BUTTON CLICKED', {
-        stage: 'CREATE_BUTTON_CLICKED',
-        docName,
-        description,
-        isFormCleared,
-        expected: false,
-        status: isFormCleared ? '❌ ERROR: Form should NOT be cleared' : '✅ OK: Form has values'
-      });
+      console.log('🖱️ [CLICK] Create Doc button clicked');
       
       // Capture form values
       const nameValue = docName.trim();

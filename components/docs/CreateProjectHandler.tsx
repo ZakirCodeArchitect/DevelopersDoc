@@ -54,8 +54,10 @@ export function useCreateProject() {
       // Navigate to the new project page
       router.push(data.href);
       
-      // Refresh the page to show the new project in the sidebar
-      router.refresh();
+      // Single refresh after navigation completes to show the new project in the sidebar
+      setTimeout(() => {
+        router.refresh();
+      }, 100);
     } catch (error) {
       console.error('Error creating project:', error);
       alert(error instanceof Error ? error.message : 'Failed to create project');

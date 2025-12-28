@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, memo, useRef } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ContextMenu } from './ContextMenu';
 
@@ -15,6 +16,53 @@ const ContextMenuWrapper: React.FC<{ children: React.ReactNode }> = ({ children 
       {children}
     </div>
   );
+};
+
+// Sync active link styles without causing DocSidebar to re-render on navigation.
+const SidebarActiveSync = ({
+  navRef,
+  pathnameRef,
+  currentPathProp,
+}: {
+  navRef: React.RefObject<HTMLElement | null>;
+  pathnameRef: React.MutableRefObject<string>;
+  currentPathProp?: string;
+}) => {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const navElement = navRef.current;
+    if (!navElement) return;
+
+    const currentPathValue = currentPathProp ?? pathname;
+    pathnameRef.current = currentPathValue;
+
+    // Update active states via DOM manipulation (no React state updates)
+    navElement.querySelectorAll('[data-nav-href]').forEach((link) => {
+      link.classList.remove('bg-blue-50', 'text-blue-600', 'font-medium');
+      link.classList.add('text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
+    });
+
+    // Add active class to current active items (exact match)
+    const activeLinks = navElement.querySelectorAll(`[data-nav-href="${currentPathValue}"]`);
+    activeLinks.forEach((link) => {
+      link.classList.add('bg-blue-50', 'text-blue-600', 'font-medium');
+      link.classList.remove('text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
+    });
+
+    // Also handle sub-path matching
+    navElement.querySelectorAll('[data-nav-href]').forEach((link) => {
+      const href = link.getAttribute('data-nav-href');
+      if (!href || href === currentPathValue) return;
+      if (href === '/docs' && currentPathValue !== '/docs') return;
+      if (currentPathValue.startsWith(href + '/')) {
+        link.classList.add('bg-blue-50', 'text-blue-600', 'font-medium');
+        link.classList.remove('text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
+      }
+    });
+  }, [pathname, currentPathProp, navRef, pathnameRef]);
+
+  return null;
 };
 
 export interface NavItem {
@@ -51,11 +99,6 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   onDeleteDoc,
 }) => {
   
-  // Debug: Log transform value
-  useEffect(() => {
-    console.log('🟡 [DEBUG] Sidebar transform will be:', isCollapsed ? 'translateX(-100%)' : 'translateZ(0)');
-  }, [isCollapsed]);
-  
   // Get initial pathname from window.location to avoid usePathname() re-renders
   const getInitialPathname = () => {
     if (typeof window === 'undefined') return '/docs';
@@ -66,19 +109,13 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   // Use currentPathProp if provided, otherwise use the ref (which will be updated via DOM)
   const currentPath = currentPathProp ?? pathnameRef.current;
   
-  // Always use server default for initial state to avoid hydration mismatch
-  // We'll update from localStorage after hydration, but suppress transitions during that update
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(() => {
-    return new Set(['Your Docs']); // Always use server-side default initially
-  });
-  
-  const [isHydrated, setIsHydrated] = useState(false);
+  // IMPORTANT: Keep initial render identical between server and client to avoid hydration mismatch.
+  // We only hydrate from localStorage AFTER mount in an effect.
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(() => new Set(['Your Docs']));
+
   const itemsRef = useRef(items);
   const currentPathRef = useRef(currentPath);
-  const prevPathRef = useRef<string | undefined>(currentPath);
   const navRef = useRef<HTMLElement>(null);
-  const initializedRef = useRef(false);
-  const forceUpdateRef = useRef(0);
   // Track manually collapsed projects to prevent auto-expand from overriding user intent
   const manuallyCollapsedRef = useRef<Set<string>>(new Set());
   // Track expanded items in a ref to avoid closure issues
@@ -90,6 +127,57 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  // After mount: restore expanded state from localStorage and ensure current route is visible.
+  // This will cause at most ONE re-render after hydration (acceptable) and prevents hydration mismatch.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const setsEqual = (a: Set<string>, b: Set<string>) => {
+      if (a.size !== b.size) return false;
+      for (const v of a) if (!b.has(v)) return false;
+      return true;
+    };
+
+    const findLabelByHref = (navItems: NavItem[], href: string): string | null => {
+      for (const item of navItems) {
+        if (item.href === href) return item.label;
+        if (item.children) {
+          const found = findLabelByHref(item.children, href);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    let nextExpanded = new Set<string>(['Your Docs']);
+
+    try {
+      const saved = localStorage.getItem('docs-sidebar-expanded');
+      if (saved) {
+        const parsed = JSON.parse(saved) as string[];
+        nextExpanded = new Set(parsed);
+      }
+    } catch {
+      // ignore
+    }
+
+    // Ensure the current route is visible on initial load.
+    const path = window.location.pathname;
+    const segments = path.split('/').filter(Boolean);
+    if (segments[0] === 'docs') {
+      if (segments[1] === 'projects' && segments[2]) {
+        nextExpanded.add('Projects');
+        const projectHref = `/docs/projects/${segments[2]}`;
+        const projectLabel = findLabelByHref(itemsRef.current, projectHref);
+        if (projectLabel) nextExpanded.add(projectLabel);
+      } else if (segments.length >= 2) {
+        nextExpanded.add('Your Docs');
+      }
+    }
+
+    setExpandedItems((prev) => (setsEqual(prev, nextExpanded) ? prev : nextExpanded));
+  }, []);
   
   // Keep expandedItemsRef in sync with state
   useEffect(() => {
@@ -103,237 +191,14 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     }
   }, [expandedItems]);
   
-  // Subscribe to pathname changes and update DOM without re-rendering
+  // Keep currentPathRef in sync for click handlers (project toggles).
   useEffect(() => {
-    if (!navRef.current || typeof window === 'undefined' || !isHydrated) return;
-    
-    const updateActiveStates = () => {
-      // Check if navRef is still available (it might be null if component unmounted)
-      if (!navRef.current || typeof window === 'undefined') return;
-      
-      // Read pathname directly from window to avoid React re-renders
-      const newPathname = window.location.pathname;
-      pathnameRef.current = newPathname;
-      const currentPathValue = currentPathProp ?? newPathname;
-      
-      // Update active states via DOM manipulation to avoid React re-render
-      // Remove active class from all links first
-      const navElement = navRef.current;
-      if (!navElement) return;
-      
-      navElement.querySelectorAll('[data-nav-href]').forEach((link) => {
-        link.classList.remove('bg-blue-50', 'text-blue-600', 'font-medium');
-        link.classList.add('text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
-      });
-      
-      // Add active class to current active items (exact match)
-      const activeLinks = navElement.querySelectorAll(`[data-nav-href="${currentPathValue}"]`);
-      activeLinks.forEach(link => {
-        link.classList.add('bg-blue-50', 'text-blue-600', 'font-medium');
-        link.classList.remove('text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
-      });
-      
-      // Also handle sub-path matching
-      navElement.querySelectorAll('[data-nav-href]').forEach((link) => {
-        const href = link.getAttribute('data-nav-href');
-        if (!href || href === currentPathValue) return;
-        
-        // Check if this href should be active (sub-path match)
-        if (href === '/docs' && currentPathValue !== '/docs') return;
-        if (currentPathValue.startsWith(href + '/')) {
-          link.classList.add('bg-blue-50', 'text-blue-600', 'font-medium');
-          link.classList.remove('text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
-        }
-      });
-      
-      // Update ref after DOM manipulation
-      const prevPath = currentPathRef.current;
-      currentPathRef.current = currentPathValue;
-      
-      
-      // Auto-expand for the new path (this will only update state if needed)
-      // Only call if path actually changed to avoid unnecessary checks
-      if (prevPath !== currentPathValue) {
-        autoExpandForPath(currentPathValue);
-      }
-    };
-    
-    // Initial update after a small delay to ensure DOM is ready
-    const timeoutId = setTimeout(() => {
-      updateActiveStates();
-    }, 0);
-    
-    // Subscribe to pathname changes via Next.js router events
-    // Use a small interval to check for pathname changes (Next.js doesn't expose router events in app router)
-    const intervalId = setInterval(() => {
-      if (!navRef.current || typeof window === 'undefined') return;
-      const newPathname = window.location.pathname;
-      if (newPathname !== pathnameRef.current) {
-        updateActiveStates();
-      }
-    }, 100); // Check every 100ms
-    
-    // Listen to popstate for back/forward navigation
-    const handlePopState = () => {
-      setTimeout(updateActiveStates, 10);
-    };
-    window.addEventListener('popstate', handlePopState);
-    
-    // Listen to pushstate/replacestate by intercepting history methods
-    const originalPushState = history.pushState;
-    const originalReplaceState = history.replaceState;
-    
-    history.pushState = function(...args) {
-      originalPushState.apply(history, args);
-      setTimeout(updateActiveStates, 10);
-    };
-    
-    history.replaceState = function(...args) {
-      originalReplaceState.apply(history, args);
-      setTimeout(updateActiveStates, 10);
-    };
-    
-    return () => {
-      clearTimeout(timeoutId);
-      clearInterval(intervalId);
-      window.removeEventListener('popstate', handlePopState);
-      history.pushState = originalPushState;
-      history.replaceState = originalReplaceState;
-    };
-  }, [currentPathProp, isHydrated]);
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    if (!initializedRef.current && typeof window !== 'undefined') {
-      initializedRef.current = true;
-      setIsHydrated(true);
-      
-      try {
-        const saved = localStorage.getItem('docs-sidebar-expanded');
-        if (saved) {
-          const parsed = JSON.parse(saved) as string[];
-          setExpandedItems(new Set(parsed));
-        }
-      } catch (e) {
-        // Ignore localStorage errors
-      }
-    }
-  }, []);
-
-  // Auto-expand logic - moved to DOM update effect to avoid re-renders
-  // This will be called from the pathname change handler
-  const autoExpandForPath = (targetPath: string) => {
-    if (!isHydrated || typeof window === 'undefined') return;
-    
-    // Read current expanded items from ref (always up-to-date)
-    const currentExpanded = expandedItemsRef.current;
-    
-    // Track path changes to auto-expand on navigation
-    const pathChanged = prevPathRef.current !== targetPath;
-    const isInitialMount = prevPathRef.current === undefined;
-    
-    // Only run on initial mount or when path actually changes
-    if (!isInitialMount && !pathChanged) return;
-    
-    prevPathRef.current = targetPath;
-
-    // Find and expand parent sections and active project
-    // CRITICAL: Never include "Projects" or "Your Docs" in parentSections - they are manual-only
-    const findParentSectionsAndProject = (navItems: NavItem[], targetPath: string, parentLabels: string[] = []): { parentSections: string[]; activeProject: string | null } => {
-      let parentSections: string[] = [];
-      let activeProject: string | null = null;
-      
-      for (const item of navItems) {
-        // CRITICAL: Skip "Projects" and "Your Docs" headers - never include them in parent sections
-        if (item.label === 'Projects' || item.label === 'Your Docs') {
-          // Still check children, but don't add this item to parentLabels
-          if (item.children) {
-            const found = findParentSectionsAndProject(item.children, targetPath, parentLabels); // Don't add item.label
-            if (found.activeProject) {
-              activeProject = found.activeProject;
-              parentSections = [...parentLabels, ...found.parentSections];
-            } else if (found.parentSections.length > 0) {
-              parentSections = [...parentLabels, ...found.parentSections];
-            }
-          }
-          continue; // Skip processing this item as a parent
-        }
-        
-        // Check if this item is the active project
-        const pathSegments = item.href.split('/').filter(Boolean);
-        const isProject = pathSegments.length === 3 && pathSegments[0] === 'docs' && pathSegments[1] === 'projects';
-        
-        if (isProject && (targetPath === item.href || targetPath.startsWith(item.href + '/'))) {
-          activeProject = item.label;
-          // If we found the active project, all its parents should be expanded (but not "Projects" or "Your Docs")
-          parentSections = [...parentLabels];
-        }
-        
-        if (item.children) {
-          // Recursively check children, passing current item as a potential parent
-          const found = findParentSectionsAndProject(item.children, targetPath, [...parentLabels, item.label]);
-          if (found.activeProject) {
-            activeProject = found.activeProject;
-            // If we found the project in children, this item and all its parents should be expanded
-            parentSections = [...parentLabels, item.label, ...found.parentSections];
-          } else if (found.parentSections.length > 0) {
-            // If a child found parent sections, this item is also a parent
-            parentSections = [...parentLabels, item.label, ...found.parentSections];
-          }
-        }
-      }
-      
-      return { parentSections, activeProject };
-    };
-
-    const { parentSections, activeProject } = findParentSectionsAndProject(itemsRef.current, targetPath);
-    const itemsToExpand: string[] = [];
-    
-    // IMPORTANT: Completely remove "Projects" and "Your Docs" from auto-expand logic
-    // These should ONLY be toggled manually by the user - never touched by auto-expand
-    const filteredParentSections = parentSections.filter(
-      section => section !== 'Projects' && section !== 'Your Docs'
-    );
-    
-    for (const section of filteredParentSections) {
-      if (!currentExpanded.has(section)) {
-        itemsToExpand.push(section);
-      }
-    }
-    // Add active project if it needs expansion
-    // But don't auto-expand if it was manually collapsed by the user
-    if (activeProject && !currentExpanded.has(activeProject) && !manuallyCollapsedRef.current.has(activeProject)) {
-      itemsToExpand.push(activeProject);
-    }
-    
-    // Only update state if there are items to expand (avoid unnecessary re-renders)
-    // This ensures we never collapse anything, only expand when needed
-    // CRITICAL: Never update state if it would affect "Projects" or "Your Docs"
-    // These headers are manual-only and should never be touched by auto-expand
-    if (itemsToExpand.length > 0) {
-      // Double-check that we're not trying to expand "Projects" or "Your Docs"
-      const safeItemsToExpand = itemsToExpand.filter(
-        item => item !== 'Projects' && item !== 'Your Docs'
-      );
-      
-      if (safeItemsToExpand.length > 0) {
-        setExpandedItems(prev => {
-          // Check if any items actually need to be added (avoid state update if already expanded)
-          const needsUpdate = safeItemsToExpand.some(item => !prev.has(item));
-          if (!needsUpdate) {
-            return prev; // Return same reference to prevent re-render
-          }
-          // Create new set with only the safe items to expand
-          // "Projects" and "Your Docs" are automatically preserved since we're not touching them
-          return new Set([...prev, ...safeItemsToExpand]);
-        });
-      }
-    }
-  };
+    currentPathRef.current = currentPathProp ?? pathnameRef.current;
+  }, [currentPathProp]);
 
   // Persist expanded items to localStorage - debounced to prevent excessive writes
   useEffect(() => {
-    if (!isHydrated || typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return;
     
     const timeoutId = setTimeout(() => {
       const itemsArray = Array.from(expandedItems);
@@ -341,7 +206,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     }, 100); // Debounce by 100ms
 
     return () => clearTimeout(timeoutId);
-  }, [expandedItems, isHydrated]);
+  }, [expandedItems]);
 
   const toggleExpand = (label: string) => {
     const newExpanded = new Set(expandedItems);
@@ -363,19 +228,6 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     }
     
     setExpandedItems(newExpanded);
-  };
-
-  // Check active state using ref (read during initial render only)
-  const isActive = (href: string) => {
-    const path = currentPathRef.current;
-    if (!path) return false;
-    // Exact match
-    if (path === href) return true;
-    // For sub-paths, only match if currentPath starts with href + '/' and href is not just '/docs'
-    // This prevents '/docs' from matching '/docs/another-page'
-    if (href === '/docs' && path !== '/docs') return false;
-    // Allow sub-path matching for other routes (e.g., /docs/projects/project-1 matches /docs/projects)
-    return path.startsWith(href + '/');
   };
 
   const renderNavItem = (item: NavItem, level: number = 0) => {
@@ -623,15 +475,9 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
                 <button
                   type="button"
                   onClick={(e) => {
-                    console.log('🔵 [DEBUG] Dashboard collapse button clicked');
-                    console.log('🔵 [DEBUG] Event:', e);
-                    console.log('🔵 [DEBUG] onToggleCollapse exists:', !!onToggleCollapse);
-                    console.log('🔵 [DEBUG] Current isCollapsed state:', isCollapsed);
                     e.preventDefault();
                     e.stopPropagation();
-                    console.log('🔵 [DEBUG] Calling onToggleCollapse...');
                     onToggleCollapse();
-                    console.log('🔵 [DEBUG] onToggleCollapse called');
                   }}
                   className="p-1.5 hover:bg-gray-100 rounded text-gray-600 hover:text-gray-900 flex-shrink-0"
                   aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -709,6 +555,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
       suppressHydrationWarning
     >
       <nav ref={navRef} className="p-4 pb-20 space-y-1">
+        <SidebarActiveSync navRef={navRef} pathnameRef={pathnameRef} currentPathProp={currentPathProp} />
         {items.map((item) => renderNavItem(item))}
       </nav>
       <div className="absolute bottom-4 left-4 right-4">
@@ -716,7 +563,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
           type="button"
           onClick={() => {
             // TODO: Implement settings logic
-            console.log('Settings clicked');
+            // Settings clicked - no re-render expected
           }}
           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
           aria-label="Settings"
@@ -782,34 +629,24 @@ const areSidebarPropsEqual = (
   prevProps: DocSidebarProps,
   nextProps: DocSidebarProps
 ) => {
-  // Check if isCollapsed changed - allow re-render if it did
+  // Only re-render if visual props changed
+  // 1. Check collapse state
   if (prevProps.isCollapsed !== nextProps.isCollapsed) {
     return false; // Allow re-render
   }
 
-  // First check: Are items exactly the same reference?
-  if (prevProps.items === nextProps.items) {
-    // Same reference - check if path prop changed (if provided)
-    // If currentPath is undefined in both, DocSidebar handles it internally via usePathname
-    if (prevProps.currentPath === nextProps.currentPath) {
-      return true; // Nothing changed - block re-render
+  // 2. Check items - do deep comparison
+  if (prevProps.items !== nextProps.items) {
+    if (!deepCompareNavItems(prevProps.items, nextProps.items)) {
+      return false; // Structure changed - allow re-render
     }
-    // Only path prop changed - allow minimal re-render
-    return false;
+    // Structure same, only reference changed - prevent re-render
   }
 
-  // Items reference changed - do deep comparison
-  if (!deepCompareNavItems(prevProps.items, nextProps.items)) {
-    return false; // Structure actually changed - allow re-render
-  }
+  // 3. Path prop changes don't need re-render (handled via DOM)
+  // 4. Handlers don't affect visual output - ignore them
 
-  // Structure is same but reference changed - check path prop
-  if (prevProps.currentPath !== nextProps.currentPath) {
-    return false; // Path prop changed - allow re-render
-  }
-
-  // Same structure, same path prop, same collapse state - block re-render
-  // (Pathname changes when currentPath is undefined will be handled by usePathname hook)
+  // All visual props are same - prevent re-render
   return true;
 };
 
