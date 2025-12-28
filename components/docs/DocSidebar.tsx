@@ -185,15 +185,21 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     // A project href is like /docs/projects/project-1 (3 segments), documents have 4+ segments
     const pathSegments = item.href.split('/').filter(Boolean);
     const isProject = pathSegments.length === 3 && pathSegments[0] === 'docs' && pathSegments[1] === 'projects';
+    // Documents under projects have 4+ segments: /docs/projects/{projectId}/{docId}
+    const isProjectDocument = pathSegments.length >= 4 && pathSegments[0] === 'docs' && pathSegments[1] === 'projects';
 
     return (
       <div 
         key={item.label} 
         className={cn(
-          level > 0 && level === 1 && 'ml-1', 
-          level > 1 && 'ml-2',
-          !isCollapsibleHeader && 'hover:bg-gray-50/50 rounded px-1 -mx-1'
+          level > 0 && level === 1 && !isProject && 'ml-1',
+          level > 0 && level === 1 && isProject && 'ml-4',
+          level > 1 && !isProjectDocument && 'ml-2',
+          level > 1 && isProjectDocument && 'ml-0',
+          !isCollapsibleHeader && !isProjectDocument && 'hover:bg-gray-50/50 rounded px-1',
+          !isCollapsibleHeader && isProjectDocument && level > 1 && 'hover:bg-gray-50/50 rounded pr-1'
         )}
+        style={level > 0 && level === 1 && isProject ? { marginLeft: '1rem' } : undefined}
       >
         <div className="flex items-center">
           {!isCollapsibleHeader && !isProject && hasChildren && (
@@ -220,7 +226,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
               </svg>
             </button>
           )}
-          {!isCollapsibleHeader && !isProject && !hasChildren && item.label !== 'Dashboard' && <div className="w-5" />}
+          {!isCollapsibleHeader && !isProject && !hasChildren && item.label !== 'Dashboard' && <div className="w-4" />}
           {isCollapsibleHeader ? (
             <div className="flex-1 flex items-center gap-1">
             <span
@@ -304,14 +310,34 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
               <Link
                 href={item.href}
                 prefetch={false}
+                onClick={(e) => {
+                  // Toggle expand when clicking anywhere on the link
+                  toggleExpand(item.label);
+                }}
                 className={cn(
-                  'py-1.5 px-2 text-sm rounded-md truncate flex-1 min-w-0',
+                  'py-1.5 px-2 text-sm rounded-md truncate flex-1 min-w-0 flex items-center gap-1 cursor-pointer',
                   active
                     ? 'bg-blue-50 text-blue-600 font-medium'
                     : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 )}
               >
                 {item.label}
+                <svg
+                  className={cn(
+                    'w-3 h-3 transition-transform flex-shrink-0',
+                    isExpanded && 'rotate-90'
+                  )}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
               </Link>
               {onRenameProject && onDeleteProject && (
                 <div 
@@ -330,39 +356,15 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
                   />
                 </div>
               )}
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  toggleExpand(item.label);
-                }}
-                className="p-1 hover:bg-gray-100 rounded"
-                aria-label={isExpanded ? 'Collapse' : 'Expand'}
-              >
-                <svg
-                  className={cn(
-                    'w-3 h-3 transition-transform',
-                    isExpanded && 'rotate-90'
-                  )}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </button>
             </div>
           ) : (
-            <div className="flex-1 flex items-center gap-1 group min-w-0">
+            <div className="flex-1 flex items-center gap-1group min-w-0">
             <Link
               href={item.href}
                 prefetch={false}
               className={cn(
-                  'py-1.5 px-2 text-sm rounded-md truncate flex-1 min-w-0',
+                'py-1.5 pr-2 text-sm rounded-md truncate flex-1 min-w-0',
+                level > 1 && isProjectDocument ? 'pl-2' : 'px-2',
                 active
                   ? 'bg-blue-50 text-blue-600 font-medium'
                   : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
@@ -459,24 +461,41 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
       }}
       suppressHydrationWarning
     >
-      <nav ref={navRef} className="p-4 space-y-1">
+      <nav ref={navRef} className="p-4 pb-20 space-y-1">
         {items.map((item) => renderNavItem(item))}
       </nav>
-      <div className="absolute bottom-4 left-4 flex items-center gap-2 text-sm text-gray-500">
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+      <div className="absolute bottom-4 left-4 right-4">
+        <button
+          type="button"
+          onClick={() => {
+            // TODO: Implement settings logic
+            console.log('Settings clicked');
+          }}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+          aria-label="Settings"
+          title="Settings"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
-          />
-        </svg>
-        <span>Light</span>
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+          <span>Settings</span>
+        </button>
       </div>
     </aside>
   );

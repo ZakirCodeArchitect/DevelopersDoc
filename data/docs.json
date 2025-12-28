@@ -6,7 +6,92 @@
       "title": "HarAik Global",
       "description": "Audit firm",
       "lastUpdated": "December 27, 2025",
-      "documents": []
+      "documents": [
+        {
+          "id": "product-implication",
+          "label": "Product Implication",
+          "title": "Product Implication",
+          "description": "Imply adding the finance tracker",
+          "lastUpdated": "December 28, 2025",
+          "content": {
+            "pages": [
+              {
+                "id": "untitled-page",
+                "title": "Untitled page",
+                "sections": [
+                  {
+                    "id": "untitled-page-content",
+                    "title": "",
+                    "type": "html",
+                    "content": [
+                      "<p></p>"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "project-manual",
+          "label": "Project manual",
+          "title": "Project manual",
+          "description": "testing",
+          "lastUpdated": "December 28, 2025",
+          "content": {
+            "pages": [
+              {
+                "id": "untitled-page",
+                "title": "Untitled page",
+                "sections": [
+                  {
+                    "id": "untitled-page-content",
+                    "title": "",
+                    "type": "html",
+                    "content": [
+                      "<p></p>"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "llm",
+      "label": "LLM",
+      "title": "LLM",
+      "description": "Large Language Models",
+      "lastUpdated": "December 28, 2025",
+      "documents": [
+        {
+          "id": "token-generation",
+          "label": "Token Generation",
+          "title": "Token Generation",
+          "description": "Using SBERT Transformation for generation of vector form input.",
+          "lastUpdated": "December 28, 2025",
+          "content": {
+            "pages": [
+              {
+                "id": "untitled-page",
+                "title": "Untitled page",
+                "sections": [
+                  {
+                    "id": "untitled-page-content",
+                    "title": "",
+                    "type": "html",
+                    "content": [
+                      "<p></p>"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
     }
   ],
   "yourDocs": [

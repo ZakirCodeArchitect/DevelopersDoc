@@ -133,100 +133,6 @@ export function DocsLandingPage({
           </div>
         ) : (
           <>
-            {/* All Documents Section */}
-            <div id="all-documents" className="mb-12">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">All Documents</h2>
-                <button
-                  onClick={() => handleCreateDoc()}
-                  className="flex items-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
-                  aria-label="Create new document"
-                  title="Create new document"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                  Create Document
-                </button>
-              </div>
-              {allDocuments.length > 0 ? (
-                <div className="grid grid-cols-1 gap-4">
-                  {allDocuments.map((doc) => (
-                    <a
-                      key={doc.href}
-                      href={doc.firstPageHref || doc.href}
-                      className="group block p-6 bg-white border border-gray-200 rounded-lg hover:border-[#CC561E] hover:shadow-md transition-all duration-200"
-                      style={{ textDecoration: 'none' }}
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 group-hover:text-[#CC561E] transition-colors mb-1" style={{ textDecoration: 'none' }}>
-                            {doc.title}
-                          </h3>
-                          {doc.description && (
-                            <p className="text-sm text-gray-600 line-clamp-2">{doc.description}</p>
-                          )}
-                          {doc.projectTitle && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Project: {doc.projectTitle}
-                            </p>
-                          )}
-                        </div>
-                        <svg
-                          className="w-5 h-5 text-gray-400 group-hover:text-[#CC561E] transition-colors flex-shrink-0 ml-2"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
-                        </svg>
-                      </div>
-                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                        <span className="text-xs text-gray-500">
-                          Updated {doc.lastUpdated}
-                        </span>
-                        <span className="text-xs text-gray-500 flex items-center gap-1">
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                          </svg>
-                          {doc.pageCount} {doc.pageCount === 1 ? 'page' : 'pages'}
-                        </span>
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 px-4 bg-gray-50 border border-gray-200 rounded-lg">
-                  <p className="text-gray-500">No documents available.</p>
-                </div>
-              )}
-            </div>
-
             {/* Quick Access to Projects */}
             <div className="mb-12">
               <div className="flex items-center justify-between mb-6">
@@ -326,6 +232,100 @@ export function DocsLandingPage({
                   </svg>
                   <p className="text-gray-500 text-sm mb-2">No projects yet.</p>
                   <p className="text-gray-400 text-xs">Click "Create Project" to create your first project.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Your Documents Section */}
+            <div id="your-documents" className="mb-12">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Your Documents</h2>
+                <button
+                  onClick={() => handleCreateDoc()}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
+                  aria-label="Create new document"
+                  title="Create new document"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Create Document
+                </button>
+              </div>
+              {allDocuments.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4">
+                  {allDocuments.map((doc) => (
+                    <a
+                      key={doc.href}
+                      href={doc.firstPageHref || doc.href}
+                      className="group block p-6 bg-white border border-gray-200 rounded-lg hover:border-[#CC561E] hover:shadow-md transition-all duration-200"
+                      style={{ textDecoration: 'none' }}
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 group-hover:text-[#CC561E] transition-colors mb-1" style={{ textDecoration: 'none' }}>
+                            {doc.title}
+                          </h3>
+                          {doc.description && (
+                            <p className="text-sm text-gray-600 line-clamp-2">{doc.description}</p>
+                          )}
+                          {doc.projectTitle && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Project: {doc.projectTitle}
+                            </p>
+                          )}
+                        </div>
+                        <svg
+                          className="w-5 h-5 text-gray-400 group-hover:text-[#CC561E] transition-colors flex-shrink-0 ml-2"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5l7 7-7 7"
+                          />
+                        </svg>
+                      </div>
+                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                        <span className="text-xs text-gray-500">
+                          Updated {doc.lastUpdated}
+                        </span>
+                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                          {doc.pageCount} {doc.pageCount === 1 ? 'page' : 'pages'}
+                        </span>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 px-4 bg-gray-50 border border-gray-200 rounded-lg">
+                  <p className="text-gray-500">No documents available.</p>
                 </div>
               )}
             </div>
