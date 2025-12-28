@@ -113,7 +113,14 @@ function renderNodeToHTML(node: any): string {
       const level = node.attrs?.level || 1;
       const hAlign = node.attrs?.textAlign;
       const hStyle = hAlign && hAlign !== 'left' ? ` style="text-align: ${hAlign}"` : '';
-      return `<h${level}${hStyle}>${renderContent(node.content)}</h${level}>`;
+      // Generate ID from heading text for TOC anchors
+      const headingText = node.content?.map((n: any) => n.text || '').join('').trim() || '';
+      const headingId = headingText
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || `heading-${Date.now()}`;
+      return `<h${level}${hStyle} id="${headingId}">${renderContent(node.content)}</h${level}>`;
     
     case 'bulletList':
       return `<ul>${renderContent(node.content)}</ul>`;
@@ -393,6 +400,58 @@ function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
   return { title: pageTitle, sections };
 }
 
+// Helper to extract all headings (H2, H3, H4) for table of contents
+function extractHeadingsForTOC(tiptapJSON: any) {
+  const headings: Array<{ id: string; label: string; level: number }> = [];
+  let foundFirstH1 = false;
+
+  tiptapJSON.content?.forEach((node: any) => {
+    if (node.type === 'heading') {
+      const level = node.attrs?.level || 1;
+      
+      // Skip the first H1 (page title)
+      if (level === 1 && !foundFirstH1) {
+        foundFirstH1 = true;
+        return;
+      }
+      
+      // Include H2, H3, H4 (and subsequent H1s treated as sections)
+      if (level >= 2 && level <= 4) {
+        const text = node.content?.map((n: any) => n.text || '').join('').trim() || '';
+        const id = text
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '') || `heading-${Date.now()}`;
+        
+        headings.push({
+          id,
+          label: text,
+          level: level - 1, // Convert H2=1, H3=2, H4=3 for TOC indentation
+        });
+      }
+      
+      // Include subsequent H1s as top-level sections in TOC
+      if (level === 1 && foundFirstH1) {
+        const text = node.content?.map((n: any) => n.text || '').join('').trim() || '';
+        const id = text
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '') || `heading-${Date.now()}`;
+        
+        headings.push({
+          id,
+          label: text,
+          level: 1, // Top-level in TOC
+        });
+      }
+    }
+  });
+
+  return headings;
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; pageId: string }> }
@@ -425,8 +484,12 @@ export async function PATCH(
     // Convert Tiptap JSON to sections and extract title
     const { title, sections } = convertTiptapJSONToSections(content, pageId);
     
+    // Extract headings for table of contents
+    const toc = extractHeadingsForTOC(content);
+    
     // DEBUG: Log sections after conversion
     console.log('🟡 [DEBUG API PATCH] Converted sections:', JSON.stringify(sections, null, 2));
+    console.log('🟡 [DEBUG API PATCH] Extracted TOC:', JSON.stringify(toc, null, 2));
 
     // docId is a UUID
     const document = await prisma.document.findUnique({
@@ -445,7 +508,10 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      page,
+      page: {
+        ...page,
+        toc, // Include TOC in response
+      },
     });
   } catch (error) {
     console.error('Error updating page:', error);

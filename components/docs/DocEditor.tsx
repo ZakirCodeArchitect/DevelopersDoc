@@ -111,7 +111,13 @@ export default function DocEditor({
   const [showSlashMenu, setShowSlashMenu] = useState(false);
   const [slashMenuPosition, setSlashMenuPosition] = useState({ top: 0, left: 0 });
   const [slashMenuPositionAbove, setSlashMenuPositionAbove] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const slashCommandRef = useRef<{ from: number; to: number } | null>(null);
+
+  // Debug log to track isSaving changes
+  useEffect(() => {
+    console.log('🔵 [DEBUG isSaving State Changed]:', isSaving);
+  }, [isSaving]);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -700,19 +706,65 @@ export default function DocEditor({
             type="button"
             onClick={async () => {
               console.log('🟢 [DEBUG Save Button] Save button clicked!');
-              if (editor && onSave) {
+              console.log('🟢 [DEBUG Save Button] Current isSaving state:', isSaving);
+              
+              if (isSaving) {
+                console.log('🟡 [DEBUG Save Button] Already saving, returning early');
+                return;
+              }
+              
+              if (!editor || !onSave) {
+                console.error('❌ [DEBUG Save Button] Editor or onSave missing!', { hasEditor: !!editor, hasOnSave: !!onSave });
+                return;
+              }
+
+              console.log('🔵 [DEBUG Save Button] Setting isSaving to TRUE');
+              setIsSaving(true);
+              
+              try {
                 const json = editor.getJSON();
                 console.log('🟢 [DEBUG Save Button] Got JSON from editor:', JSON.stringify(json, null, 2));
                 console.log('🟢 [DEBUG Save Button] Calling onSave callback...');
                 await onSave(json);
                 console.log('🟢 [DEBUG Save Button] onSave callback completed');
-              } else {
-                console.error('❌ [DEBUG Save Button] Editor or onSave missing!', { hasEditor: !!editor, hasOnSave: !!onSave });
+              } catch (error) {
+                console.error('❌ [DEBUG Save Button] Save error:', error);
+                throw error;
+              } finally {
+                console.log('🔵 [DEBUG Save Button] Setting isSaving to FALSE');
+                setIsSaving(false);
               }
             }}
-            className="px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium"
+            disabled={isSaving || !editor || !onSave}
+            aria-busy={isSaving}
+            className={`px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium inline-flex items-center gap-2 ${
+              isSaving ? 'opacity-75 cursor-wait' : ''
+            } disabled:opacity-75 disabled:cursor-not-allowed`}
           >
-            Save
+            {isSaving && (
+              <svg
+                className="h-4 w-4 animate-spin"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                />
+              </svg>
+            )}
+            <span>{isSaving ? "Saving..." : "Save"}</span>
           </button>
           <button
             type="button"

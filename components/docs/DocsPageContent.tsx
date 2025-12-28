@@ -528,12 +528,19 @@ const DocsPageContentComponent = ({
       
       // Convert API response to ProcessedPage format for optimistic update
       if (data.page && page) {
-        // Generate TOC from sections
-        const toc: TocItem[] = (data.page.sections || []).map((section: any) => ({
-          id: section.id,
-          label: section.title || '',
-          level: 1,
-        }));
+        // Use TOC from API response if available, otherwise generate from sections
+        let toc: TocItem[] = [];
+        if (data.page.toc && Array.isArray(data.page.toc)) {
+          // Use the TOC extracted by the API (includes H2, H3, H4)
+          toc = data.page.toc;
+        } else {
+          // Fallback: generate TOC from sections (for backward compatibility)
+          toc = (data.page.sections || []).map((section: any) => ({
+            id: section.id,
+            label: section.title || '',
+            level: 1,
+          }));
+        }
 
         // Create optimistic page with updated data, preserving all required properties
         const updatedPage: ProcessedPage = {

@@ -60,14 +60,20 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
                 {items.map((item) => {
                   const isActive = activeId === item.id;
                   const level = item.level || 1;
+                  // Calculate indentation: H2=level 1, H3=level 2, H4=level 3
+                  const indentClass = level === 1 ? '' : level === 2 ? 'ml-4' : level === 3 ? 'ml-8' : 'ml-12';
+                  const fontSize = level === 1 ? 'text-sm' : 'text-sm';
+                  
                   return (
                     <Link
                       key={item.id}
                       href={`#${item.id}`}
                       className={cn(
-                        'block text-sm transition-colors',
+                        'block transition-colors',
+                        fontSize,
+                        indentClass,
                         level === 1 && 'font-medium',
-                        level > 1 && 'ml-4 text-gray-600',
+                        level > 1 && 'text-gray-600',
                         isActive
                           ? 'text-blue-600'
                           : 'text-gray-700 hover:text-gray-900'

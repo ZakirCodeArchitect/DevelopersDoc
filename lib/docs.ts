@@ -121,11 +121,126 @@ function generateYourDocHref(docId: string, pageId?: string): string {
  * Generate TOC items from document sections
  */
 function generateTocFromSections(sections: DocumentSection[]): TocItem[] {
-  return sections.map((section) => ({
-    id: section.id,
-    label: section.title,
-    level: 1,
-  }));
+  const tocItems: TocItem[] = [];
+  
+  sections.forEach((section) => {
+    // If section has a title, it's an H2 section heading
+    if (section.title && section.title.trim()) {
+      // Generate ID from title
+      const id = section.title
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      
+      tocItems.push({
+        id: id || section.id,
+        label: section.title,
+        level: 1, // H2 = level 1 in TOC
+      });
+    }
+    
+    // Extract H3 and H4 headings from section content
+    if (section.content && Array.isArray(section.content)) {
+      section.content.forEach((html: string) => {
+        if (typeof html === 'string') {
+          // Match H3 tags - ID is optional, generate one if missing
+          const h3Matches = html.matchAll(/<h3[^>]*>(.*?)<\/h3>/gi);
+          const h3MatchesWithId = html.matchAll(/<h3[^>]*id=["']([^"']+)["'][^>]*>(.*?)<\/h3>/gi);
+          
+          // Use a Set to track which headings we've already added
+          const addedH3Ids = new Set<string>();
+          
+          // First, add headings with IDs
+          for (const match of h3MatchesWithId) {
+            const id = match[1];
+            const label = match[2].replace(/<[^>]+>/g, '').trim(); // Strip HTML tags
+            if (label && !addedH3Ids.has(id)) {
+              tocItems.push({
+                id,
+                label,
+                level: 2, // H3 = level 2 in TOC
+              });
+              addedH3Ids.add(id);
+            }
+          }
+          
+          // Then, add headings without IDs (generate IDs from text)
+          for (const match of h3Matches) {
+            const fullMatch = match[0];
+            // Check if this heading already has an ID
+            const idMatch = fullMatch.match(/id=["']([^"']+)["']/i);
+            if (idMatch) continue; // Already added above
+            
+            const label = match[1].replace(/<[^>]+>/g, '').trim(); // Strip HTML tags
+            if (label) {
+              const id = label
+                .toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '') || `h3-${tocItems.length}`;
+              
+              if (!addedH3Ids.has(id)) {
+                tocItems.push({
+                  id,
+                  label,
+                  level: 2, // H3 = level 2 in TOC
+                });
+                addedH3Ids.add(id);
+              }
+            }
+          }
+          
+          // Match H4 tags - ID is optional, generate one if missing
+          const h4Matches = html.matchAll(/<h4[^>]*>(.*?)<\/h4>/gi);
+          const h4MatchesWithId = html.matchAll(/<h4[^>]*id=["']([^"']+)["'][^>]*>(.*?)<\/h4>/gi);
+          const addedH4Ids = new Set<string>();
+          
+          // First, add headings with IDs
+          for (const match of h4MatchesWithId) {
+            const id = match[1];
+            const label = match[2].replace(/<[^>]+>/g, '').trim(); // Strip HTML tags
+            if (label && !addedH4Ids.has(id)) {
+              tocItems.push({
+                id,
+                label,
+                level: 3, // H4 = level 3 in TOC
+              });
+              addedH4Ids.add(id);
+            }
+          }
+          
+          // Then, add headings without IDs (generate IDs from text)
+          for (const match of h4Matches) {
+            const fullMatch = match[0];
+            // Check if this heading already has an ID
+            const idMatch = fullMatch.match(/id=["']([^"']+)["']/i);
+            if (idMatch) continue; // Already added above
+            
+            const label = match[1].replace(/<[^>]+>/g, '').trim(); // Strip HTML tags
+            if (label) {
+              const id = label
+                .toLowerCase()
+                .trim()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '') || `h4-${tocItems.length}`;
+              
+              if (!addedH4Ids.has(id)) {
+                tocItems.push({
+                  id,
+                  label,
+                  level: 3, // H4 = level 3 in TOC
+                });
+                addedH4Ids.add(id);
+              }
+            }
+          }
+        }
+      });
+    }
+  });
+  
+  return tocItems;
 }
 
 /**
