@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createProject } from '@/lib/db';
-import { prisma } from '@/lib/db';
+import { getCurrentUser } from '@/lib/users';
 
 export async function POST(request: NextRequest) {
   try {
+    // Get current user
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { name, description } = body;
 
@@ -15,7 +24,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create new project (createProject handles unique ID generation)
-    const newProject = await createProject(name, description);
+    const newProject = await createProject(name, description, user.id);
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updatePage, prisma } from '@/lib/db';
+import { updatePage } from '@/lib/db';
+import { getCurrentUser } from '@/lib/users';
 import type { DocumentSection } from '@/lib/docs';
 
 // Helper to render a Tiptap node to HTML
@@ -457,6 +458,15 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; pageId: string }> }
 ) {
   try {
+    // Get current user
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const resolvedParams = await params;
     const docId = resolvedParams.id;
     const pageId = resolvedParams.pageId;
@@ -491,20 +501,8 @@ export async function PATCH(
     console.log('🟡 [DEBUG API PATCH] Converted sections:', JSON.stringify(sections, null, 2));
     console.log('🟡 [DEBUG API PATCH] Extracted TOC:', JSON.stringify(toc, null, 2));
 
-    // docId is a UUID
-    const document = await prisma.document.findUnique({
-      where: { id: docId },
-    });
-
-    if (!document) {
-      return NextResponse.json(
-        { error: 'Document not found' },
-        { status: 404 }
-      );
-    }
-
-    // Update or create page using updatePage function (it expects slugs)
-    const page = await updatePage(docId, pageId, title, sections as DocumentSection[], projectId);
+    // Update or create page using updatePage function (it will verify document ownership)
+    const page = await updatePage(docId, pageId, title, sections as DocumentSection[], user.id, projectId);
 
     return NextResponse.json({
       success: true,

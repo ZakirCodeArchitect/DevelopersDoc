@@ -1,11 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addPageToDocument, prisma } from '@/lib/db';
+import { getCurrentUser } from '@/lib/users';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const resolvedParams = await params;
     const docId = resolvedParams.id;
     const body = await request.json();
@@ -18,25 +28,14 @@ export async function POST(
       );
     }
 
-    // docId is a UUID
-    const document = await prisma.document.findUnique({
-      where: { id: docId },
-    });
-
-    if (!document) {
-      return NextResponse.json(
-        { error: 'Document not found' },
-        { status: 404 }
-      );
-    }
-
     // Default content if not provided
     const sectionContent = content || [''];
 
-    // Add page to document (addPageToDocument expects UUID)
+    // Add page to document (addPageToDocument will verify document ownership)
     const newPage = await addPageToDocument(
       docId,
       title.trim(),
+      user.id,
       Array.isArray(sectionContent) ? sectionContent : [sectionContent],
       projectId
     );

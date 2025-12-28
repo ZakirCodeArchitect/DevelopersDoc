@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createDocument, prisma } from '@/lib/db';
+import { createDocument } from '@/lib/db';
+import { getCurrentUser } from '@/lib/users';
 
 export async function POST(request: NextRequest) {
   try {
+    // Get current user
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { name, description, projectId } = body;
 
@@ -13,21 +23,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If projectId is provided, verify project exists (projectId is a UUID)
+    // Create new document (createDocument will verify project ownership if projectId is provided)
     if (projectId) {
-      const project = await prisma.project.findUnique({
-        where: { id: projectId },
-      });
-
-      if (!project) {
-        return NextResponse.json(
-          { error: 'Project not found' },
-          { status: 404 }
-        );
-      }
-
-      // Create new document (createDocument expects slug)
-      const newDoc = await createDocument(name, description, projectId);
+      const newDoc = await createDocument(name, description, user.id, projectId);
 
       // Get the first page slug from the created document
       const firstPage = newDoc.content.pages[0];
@@ -40,7 +38,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       // Create document in "Your Docs" (createDocument handles unique ID generation)
-      const newDoc = await createDocument(name, description);
+      const newDoc = await createDocument(name, description, user.id);
 
       // Get the first page slug from the created document
       const firstPage = newDoc.content.pages[0];

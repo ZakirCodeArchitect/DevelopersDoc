@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
-import { updateDocument, deleteDocument, prisma } from '@/lib/db';
+import { updateDocument, deleteDocument } from '@/lib/db';
+import { getCurrentUser } from '@/lib/users';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const resolvedParams = await params;
     const docId = resolvedParams.id;
     const body = await request.json();
@@ -19,34 +29,8 @@ export async function PATCH(
       );
     }
 
-    // docId is a UUID
-    const existingDoc = await prisma.document.findUnique({
-      where: { id: docId },
-    });
-
-    if (!existingDoc) {
-      return NextResponse.json(
-        { error: 'Document not found' },
-        { status: 404 }
-      );
-    }
-
-    // If projectId is provided, verify project exists (projectId is a UUID)
-    if (projectId) {
-      const project = await prisma.project.findUnique({
-        where: { id: projectId },
-      });
-
-      if (!project) {
-        return NextResponse.json(
-          { error: 'Project not found' },
-          { status: 404 }
-        );
-      }
-    }
-
-    // Update document (updateDocument expects slug and handles slug generation)
-    const doc = await updateDocument(docId, name, projectId);
+    // Update document (updateDocument will verify ownership)
+    const doc = await updateDocument(docId, name, user.id, projectId);
 
     const newHref = projectId 
       ? `/docs/projects/${projectId}/${doc.id}`
@@ -71,25 +55,22 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Get current user
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const resolvedParams = await params;
     const docId = resolvedParams.id;
     const body = await request.json();
     const { projectId } = body;
 
-    // docId is a UUID
-    const existingDoc = await prisma.document.findUnique({
-      where: { id: docId },
-    });
-
-    if (!existingDoc) {
-      return NextResponse.json(
-        { error: 'Document not found' },
-        { status: 404 }
-      );
-    }
-
-    // Delete document (deleteDocument expects slug)
-    await deleteDocument(docId, projectId);
+    // Delete document (deleteDocument will verify ownership)
+    await deleteDocument(docId, user.id, projectId);
 
     // Revalidate the project page and docs pages to clear cache
     if (projectId) {

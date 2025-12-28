@@ -4,31 +4,26 @@ import {
   buildSidebarItems,
 } from '@/lib/docs';
 import { getAllDocsNavData } from '@/lib/db';
+import { getCurrentUser } from '@/lib/users';
 import { DocsLayoutClient } from '@/components/docs/DocsLayoutClient';
-import { cache } from 'react';
-
-// Cache the processed data to prevent recreating objects on every navigation
-// This ensures the same object references are used across navigations
-const getProcessedDocsData = cache(async () => {
-  const data = await getAllDocsNavData();
-  const processedProjects = processProjects(data.projects);
-  const processedYourDocs = processYourDocs(data.yourDocs);
-  const sidebarItems = buildSidebarItems(processedProjects, processedYourDocs);
-  
-  return {
-    processedProjects,
-    processedYourDocs,
-    sidebarItems,
-  };
-});
+import { redirect } from 'next/navigation';
 
 export default async function DocsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Use cached data to maintain same object references across navigations
-  const { processedProjects, processedYourDocs, sidebarItems } = await getProcessedDocsData();
+  // Get current user
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect('/sign-in');
+  }
+
+  // Get data for the current user
+  const data = await getAllDocsNavData(user.id);
+  const processedProjects = processProjects(data.projects);
+  const processedYourDocs = processYourDocs(data.yourDocs);
+  const sidebarItems = buildSidebarItems(processedProjects, processedYourDocs);
 
   return (
     <DocsLayoutClient

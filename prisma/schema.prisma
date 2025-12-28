@@ -19,6 +19,8 @@ model Project {
   lastUpdated String
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   documents   Document[]
 
   @@map("projects")
@@ -36,6 +38,9 @@ model Document {
   // If projectId is null, it's a "Your Docs" document
   projectId   String?
   project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   pages       Page[]
 
@@ -70,5 +75,20 @@ model Section {
   page        Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
 
   @@map("sections")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  clerkId       String    @unique // Clerk user ID
+  email         String
+  firstName     String?
+  lastName      String?
+  imageUrl      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  projects      Project[]
+  documents     Document[]
+
+  @@map("users")
 }
 

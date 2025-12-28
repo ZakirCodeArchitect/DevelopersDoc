@@ -9,23 +9,11 @@ import {
   type ProcessedPage,
 } from '@/lib/docs';
 import { getAllDocsNavData, getPageWithSections } from '@/lib/db';
+import { getCurrentUser } from '@/lib/users';
 import { DocsPageContent } from '@/components/docs/DocsPageContent';
 import { DocsLandingPage } from '@/components/docs/DocsLandingPage';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
-
-// Cache the processed data to prevent recreating objects on every navigation
-const getProcessedDocsData = cache(async () => {
-  // NAV-ONLY dataset (no sections) for fast navigation and small payloads
-  const data = await getAllDocsNavData();
-  const processedProjects = processProjects(data.projects);
-  const processedYourDocs = processYourDocs(data.yourDocs);
-  
-  return {
-    processedProjects,
-    processedYourDocs,
-  };
-});
 
 interface DocsPageProps {
   params: Promise<{
@@ -34,12 +22,20 @@ interface DocsPageProps {
 }
 
 export default async function DocsPage({ params }: DocsPageProps) {
+  // Get current user
+  const user = await getCurrentUser();
+  if (!user) {
+    redirect('/sign-in');
+  }
+
   const resolvedParams = await params;
   const slug = resolvedParams.slug || [];
   const currentPath = slug.length > 0 ? `/docs/${slug.join('/')}` : '/docs';
 
-  // Use cached data to maintain same object references across navigations
-  const { processedProjects, processedYourDocs } = await getProcessedDocsData();
+  // NAV-ONLY dataset (no sections) for fast navigation and small payloads
+  const data = await getAllDocsNavData(user.id);
+  const processedProjects = processProjects(data.projects);
+  const processedYourDocs = processYourDocs(data.yourDocs);
 
   // Find the current page
   let currentPage = findDocumentByPath(currentPath, processedProjects, processedYourDocs);
@@ -65,7 +61,7 @@ export default async function DocsPage({ params }: DocsPageProps) {
   // If this is a page, fetch its sections only (content) and patch into the processed page.
   // This avoids loading ALL sections for ALL docs on every navigation.
   if (currentPage && isPage(currentPage)) {
-    const fullPage = await getPageWithSections(currentPage.id);
+    const fullPage = await getPageWithSections(currentPage.id, user.id);
     if (fullPage) {
       const toc = (fullPage.sections || []).map((section: any) => ({
         id: section.id,

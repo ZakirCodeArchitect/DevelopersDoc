@@ -44,6 +44,7 @@
     "prosemirror-tables": "^1.8.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "svix": "^1.82.0",
     "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
