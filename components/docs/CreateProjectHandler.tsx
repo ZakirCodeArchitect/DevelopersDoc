@@ -7,6 +7,8 @@ import { CreateProjectModal } from './CreateProjectModal';
 export function useCreateProject() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // CRITICAL: Store form values here so they persist even if modal remounts
+  const [storedFormValues, setStoredFormValues] = useState<{ name: string; description: string } | null>(null);
   const router = useRouter();
 
   const handleCreateProject = useCallback(() => {
@@ -20,6 +22,9 @@ export function useCreateProject() {
   }, [isLoading]);
 
   const handleSubmit = useCallback(async (name: string, description: string) => {
+    // CRITICAL: Store form values in handler state before setting loading
+    // This ensures they persist even if modal component remounts
+    setStoredFormValues({ name, description });
     setIsLoading(true);
     
     try {
@@ -38,8 +43,13 @@ export function useCreateProject() {
         throw new Error(data.error || 'Failed to create project');
       }
 
-      // Close modal immediately before navigation
+      // Wait a brief moment to show "Creating..." state, then close
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // Close modal after showing creating state
       setIsModalOpen(false);
+      setIsLoading(false);
+      setStoredFormValues(null); // Clear stored values after closing
       
       // Navigate to the new project page
       router.push(data.href);
@@ -49,18 +59,22 @@ export function useCreateProject() {
     } catch (error) {
       console.error('Error creating project:', error);
       alert(error instanceof Error ? error.message : 'Failed to create project');
-    } finally {
       setIsLoading(false);
     }
   }, [router]);
 
-  const Modal = () => (
+  // CRITICAL: Use stable key to ensure React treats it as same component instance
+  // Pass stored form values as prop so modal can restore them if needed
+  const Modal = useCallback(() => (
     <CreateProjectModal
+      key="create-project-modal" // Stable key - prevents remounting
       isOpen={isModalOpen}
       onClose={handleCloseModal}
       onSubmit={handleSubmit}
+      isSubmitting={isLoading}
+      storedFormValues={storedFormValues} // Pass stored values to restore if lost
     />
-  );
+  ), [isModalOpen, handleCloseModal, handleSubmit, isLoading, storedFormValues]);
 
   return {
     handleCreateProject,

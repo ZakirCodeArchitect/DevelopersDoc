@@ -9,30 +9,78 @@ interface CreateProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (name: string, description: string) => void | Promise<void>;
+  isSubmitting?: boolean; // External submitting state from handler
+  storedFormValues?: { name: string; description: string } | null; // Values stored in handler (persist across remounts)
 }
 
-export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
+// Internal component - will be wrapped with React.memo
+const CreateProjectModalComponent: React.FC<CreateProjectModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
+  isSubmitting: externalIsSubmitting = false,
+  storedFormValues,
 }) => {
   const [projectName, setProjectName] = useState('');
   const [description, setDescription] = useState('');
   const [errors, setErrors] = useState<{ name?: string; description?: string }>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [internalIsSubmitting, setInternalIsSubmitting] = useState(false);
+  
+  // Use external submitting state if provided, otherwise use internal
+  const isSubmitting = externalIsSubmitting || internalIsSubmitting;
 
-  // Reset form when modal closes (delay to prevent showing empty form during close animation)
-  useEffect(() => {
-    if (!isOpen) {
-      // Reset form after modal close animation completes
-      const timer = setTimeout(() => {
-        setProjectName('');
-        setDescription('');
-        setErrors({});
-      }, 300); // Wait for close animation to complete
-      return () => clearTimeout(timer);
+  // Track previous open state to detect when modal opens fresh
+  const prevIsOpenRef = React.useRef(false);
+  // Track if this is the first render after mount (to prevent clearing during remount)
+  const isFirstRenderRef = React.useRef(true);
+  
+  // Store form values in ref when they exist, to recover if component remounts
+  const formValuesRef = React.useRef<{ projectName: string; description: string } | null>(null);
+  
+  // Update ref whenever form values change
+  React.useEffect(() => {
+    if (projectName || description) {
+      formValuesRef.current = { projectName, description };
     }
-  }, [isOpen]);
+  }, [projectName, description]);
+  
+  // CRITICAL: Restore form values from handler's stored values if component remounted
+  React.useEffect(() => {
+    if (storedFormValues && (!projectName || !description)) {
+      if (!projectName && storedFormValues.name) {
+        setProjectName(storedFormValues.name);
+      }
+      if (!description && storedFormValues.description) {
+        setDescription(storedFormValues.description);
+      }
+    }
+  }, [storedFormValues, projectName, description]);
+  
+  useEffect(() => {
+    // Mark that we've completed the first render
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+    }
+    
+    const wasOpen = prevIsOpenRef.current;
+    const isOpening = isOpen && !wasOpen;
+    
+    // CRITICAL: Only clear form when modal opens fresh AND we're NOT submitting
+    // Never clear during submission - this prevents form from being cleared when component remounts
+    // Also don't clear if form has values (extra safeguard)
+    // Don't clear on first render if modal is already open (prevents clearing during remount)
+    if (isOpening && !isSubmitting && !projectName && !description && !isFirstRenderRef.current) {
+      setProjectName('');
+      setDescription('');
+      setErrors({});
+      setInternalIsSubmitting(false);
+    } else if (isOpening && (isSubmitting || projectName || description || isFirstRenderRef.current)) {
+      // Prevented clearing - form has values or is submitting
+    }
+    
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, isSubmitting, projectName, description]);
+
 
   // Close on Escape key
   useEffect(() => {
@@ -75,13 +123,18 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (validate() && !isSubmitting) {
-      setIsSubmitting(true);
+      // Capture form values
+      const nameValue = projectName.trim();
+      const descValue = description.trim();
+      
+      // Set submitting state - form values remain in state (not cleared)
+      setInternalIsSubmitting(true);
+      
       try {
-        await onSubmit(projectName.trim(), description.trim());
+        await onSubmit(nameValue, descValue);
       } catch (error) {
         console.error('Error submitting form:', error);
-      } finally {
-        setIsSubmitting(false);
+        setInternalIsSubmitting(false);
       }
     }
   };
@@ -92,7 +145,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  // Keep modal visible while submitting, even if isOpen becomes false
+  // This prevents the empty form flash
+  if (!isOpen && !isSubmitting) return null;
 
   return (
     <div
@@ -129,15 +184,19 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 type="text"
                 value={projectName}
                 onChange={(e) => {
-                  setProjectName(e.target.value);
-                  if (errors.name) {
-                    setErrors((prev) => ({ ...prev, name: undefined }));
+                  if (!isSubmitting) {
+                    setProjectName(e.target.value);
+                    if (errors.name) {
+                      setErrors((prev) => ({ ...prev, name: undefined }));
+                    }
                   }
                 }}
                 placeholder="Enter project name"
+                disabled={isSubmitting}
                 className={cn(
                   'border-gray-300 focus:border-gray-400 focus:ring-gray-200',
-                  errors.name && 'border-red-500 focus-visible:ring-red-500 focus:border-red-500'
+                  errors.name && 'border-red-500 focus-visible:ring-red-500 focus:border-red-500',
+                  isSubmitting && 'opacity-60 cursor-not-allowed'
                 )}
                 autoFocus
               />
@@ -163,16 +222,20 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
                 id="project-description"
                 value={description}
                 onChange={(e) => {
-                  setDescription(e.target.value);
-                  if (errors.description) {
-                    setErrors((prev) => ({ ...prev, description: undefined }));
+                  if (!isSubmitting) {
+                    setDescription(e.target.value);
+                    if (errors.description) {
+                      setErrors((prev) => ({ ...prev, description: undefined }));
+                    }
                   }
                 }}
                 placeholder="Enter project description"
                 rows={4}
+                disabled={isSubmitting}
                 className={cn(
                   'flex w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-200 focus-visible:ring-offset-0 focus-visible:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50 resize-none transition-colors',
-                  errors.description && 'border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500'
+                  errors.description && 'border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500',
+                  isSubmitting && 'opacity-60'
                 )}
               />
               {errors.description && (
@@ -210,3 +273,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
     </div>
   );
 };
+
+// Set display name for better debugging
+CreateProjectModalComponent.displayName = 'CreateProjectModalComponent';
+
+// Export memoized version - React.memo prevents remounting
+// It will re-render with new props when they change, but the component instance stays the same
+// This preserves state (projectName, description) even when isSubmitting changes
+export const CreateProjectModal = React.memo(CreateProjectModalComponent);
+CreateProjectModal.displayName = 'CreateProjectModal';

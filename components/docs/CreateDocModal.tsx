@@ -10,31 +10,143 @@ interface CreateDocModalProps {
   onClose: () => void;
   onSubmit: (name: string, description: string) => void | Promise<void>;
   projectName?: string;
+  isSubmitting?: boolean; // External submitting state from handler
+  storedFormValues?: { name: string; description: string } | null; // Values stored in handler (persist across remounts)
 }
 
-export const CreateDocModal: React.FC<CreateDocModalProps> = ({
+// Memoize the component to prevent remounting when props change
+const CreateDocModalComponent: React.FC<CreateDocModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
   projectName,
+  isSubmitting: externalIsSubmitting = false,
+  storedFormValues,
 }) => {
   const [docName, setDocName] = useState('');
   const [description, setDescription] = useState('');
   const [errors, setErrors] = useState<{ name?: string; description?: string }>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [internalIsSubmitting, setInternalIsSubmitting] = useState(false);
+  
+  // Use external submitting state if provided, otherwise use internal
+  const isSubmitting = externalIsSubmitting || internalIsSubmitting;
 
-  // Reset form when modal closes (delay to prevent showing empty form during close animation)
+  // Track previous open state to detect when modal opens fresh
+  const prevIsOpenRef = React.useRef(false);
+  // Track if this is the first render after mount (to prevent clearing during remount)
+  const isFirstRenderRef = React.useRef(true);
+  
   useEffect(() => {
-    if (!isOpen) {
-      // Reset form after modal close animation completes
-      const timer = setTimeout(() => {
-        setDocName('');
-        setDescription('');
-        setErrors({});
-      }, 300); // Wait for close animation to complete
-      return () => clearTimeout(timer);
+    // Mark that we've completed the first render
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
     }
-  }, [isOpen]);
+    
+    const wasOpen = prevIsOpenRef.current;
+    const isOpening = isOpen && !wasOpen;
+    
+    // CRITICAL: Only clear form when modal opens fresh AND we're NOT submitting
+    // Never clear during submission - this prevents form from being cleared when component remounts
+    // Also don't clear if form has values (extra safeguard)
+    // Don't clear on first render if modal is already open (prevents clearing during remount)
+    if (isOpening && !isSubmitting && !docName && !description && !isFirstRenderRef.current) {
+      // [DEBUG] Stage 4: When cleared (form reset on open)
+      console.log('[CreateDocModal DEBUG] 🔵 FORM CLEARED', {
+        stage: 'FORM_CLEARED',
+        docName: '',
+        description: '',
+        isFormCleared: true,
+        expected: true,
+        status: '✅ OK: Form cleared for new entry'
+      });
+      
+      setDocName('');
+      setDescription('');
+      setErrors({});
+      setInternalIsSubmitting(false);
+    } else if (isOpening && (isSubmitting || docName || description || isFirstRenderRef.current)) {
+      // [DEBUG] Prevented clearing during submission or when form has values
+      console.log('[CreateDocModal DEBUG] 🛡️ PREVENTED FORM CLEAR', {
+        stage: 'PREVENTED_CLEAR',
+        isOpening,
+        isSubmitting,
+        hasDocName: !!docName,
+        hasDescription: !!description,
+        isFirstRender: isFirstRenderRef.current,
+        reason: isFirstRenderRef.current ? 'first render' : (isSubmitting ? 'submitting' : 'has values')
+      });
+    }
+    
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, isSubmitting, docName, description]);
+  
+  // Store form values in ref when they exist, to recover if component remounts
+  const formValuesRef = React.useRef<{ docName: string; description: string } | null>(null);
+  
+  // Update ref whenever form values change
+  React.useEffect(() => {
+    if (docName || description) {
+      formValuesRef.current = { docName, description };
+    }
+  }, [docName, description]);
+  
+  // CRITICAL: Restore form values from handler's stored values if component remounted
+  React.useEffect(() => {
+    if (storedFormValues && (!docName || !description)) {
+      console.log('[CreateDocModal DEBUG] 🔧 RESTORING FROM HANDLER STORAGE', {
+        stage: 'RESTORING_FROM_HANDLER',
+        storedFormValues,
+        currentDocName: docName,
+        currentDescription: description
+      });
+      if (!docName && storedFormValues.name) {
+        setDocName(storedFormValues.name);
+      }
+      if (!description && storedFormValues.description) {
+        setDescription(storedFormValues.description);
+      }
+    }
+  }, [storedFormValues, docName, description]);
+  
+  // [DEBUG] Stage 2: When creating (isSubmitting becomes true)
+  useEffect(() => {
+    if (isSubmitting) {
+      // CRITICAL: If form is empty, try to restore from handler's stored values first
+      if (!docName && !description) {
+        if (storedFormValues) {
+          console.log('[CreateDocModal DEBUG] 🔧 RECOVERING FROM HANDLER STORAGE', {
+            stage: 'RECOVERING_FROM_HANDLER',
+            storedFormValues
+          });
+          setDocName(storedFormValues.name);
+          setDescription(storedFormValues.description);
+          return; // Will log after values are restored
+        } else if (formValuesRef.current) {
+          console.log('[CreateDocModal DEBUG] 🔧 RECOVERING FORM VALUES FROM REF', {
+            stage: 'RECOVERING_VALUES',
+            storedValues: formValuesRef.current
+          });
+          setDocName(formValuesRef.current.docName);
+          setDescription(formValuesRef.current.description);
+          return;
+        }
+      }
+      
+      const isFormCleared = !docName.trim() && !description.trim();
+      console.log('[CreateDocModal DEBUG] 🟡 CREATING (SUBMITTING)', {
+        stage: 'CREATING',
+        docName,
+        description,
+        hasStoredValues: !!storedFormValues,
+        storedFormValues,
+        hasRefValues: !!formValuesRef.current,
+        storedRefValues: formValuesRef.current,
+        isFormCleared,
+        expected: false,
+        status: isFormCleared ? '❌ ERROR: Form should NOT be cleared' : '✅ OK: Form has values'
+      });
+    }
+  }, [isSubmitting, docName, description, storedFormValues]);
 
   // Close on Escape key
   useEffect(() => {
@@ -77,13 +189,29 @@ export const CreateDocModal: React.FC<CreateDocModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (validate() && !isSubmitting) {
-      setIsSubmitting(true);
+      // [DEBUG] Stage 1: Create button clicked
+      const isFormCleared = !docName.trim() && !description.trim();
+      console.log('[CreateDocModal DEBUG] 🟢 CREATE BUTTON CLICKED', {
+        stage: 'CREATE_BUTTON_CLICKED',
+        docName,
+        description,
+        isFormCleared,
+        expected: false,
+        status: isFormCleared ? '❌ ERROR: Form should NOT be cleared' : '✅ OK: Form has values'
+      });
+      
+      // Capture form values
+      const nameValue = docName.trim();
+      const descValue = description.trim();
+      
+      // Set submitting state - form values remain in state (not cleared)
+      setInternalIsSubmitting(true);
+      
       try {
-        await onSubmit(docName.trim(), description.trim());
+        await onSubmit(nameValue, descValue);
       } catch (error) {
-        console.error('Error submitting form:', error);
-      } finally {
-        setIsSubmitting(false);
+        console.error('[CreateDocModal] Error submitting form:', error);
+        setInternalIsSubmitting(false);
       }
     }
   };
@@ -94,7 +222,9 @@ export const CreateDocModal: React.FC<CreateDocModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  // Keep modal visible while submitting, even if isOpen becomes false
+  // This prevents the empty form flash
+  if (!isOpen && !isSubmitting) return null;
 
   return (
     <div
@@ -133,15 +263,19 @@ export const CreateDocModal: React.FC<CreateDocModalProps> = ({
                 type="text"
                 value={docName}
                 onChange={(e) => {
-                  setDocName(e.target.value);
-                  if (errors.name) {
-                    setErrors((prev) => ({ ...prev, name: undefined }));
+                  if (!isSubmitting) {
+                    setDocName(e.target.value);
+                    if (errors.name) {
+                      setErrors((prev) => ({ ...prev, name: undefined }));
+                    }
                   }
                 }}
                 placeholder="Enter document name"
+                disabled={isSubmitting}
                 className={cn(
                   'border-gray-300 focus:border-gray-400 focus:ring-gray-200',
-                  errors.name && 'border-red-500 focus-visible:ring-red-500 focus:border-red-500'
+                  errors.name && 'border-red-500 focus-visible:ring-red-500 focus:border-red-500',
+                  isSubmitting && 'opacity-60 cursor-not-allowed'
                 )}
                 autoFocus
               />
@@ -167,16 +301,20 @@ export const CreateDocModal: React.FC<CreateDocModalProps> = ({
                 id="doc-description"
                 value={description}
                 onChange={(e) => {
-                  setDescription(e.target.value);
-                  if (errors.description) {
-                    setErrors((prev) => ({ ...prev, description: undefined }));
+                  if (!isSubmitting) {
+                    setDescription(e.target.value);
+                    if (errors.description) {
+                      setErrors((prev) => ({ ...prev, description: undefined }));
+                    }
                   }
                 }}
                 placeholder="Enter document description"
                 rows={4}
+                disabled={isSubmitting}
                 className={cn(
                   'flex w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-200 focus-visible:ring-offset-0 focus-visible:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50 resize-none transition-colors',
-                  errors.description && 'border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500'
+                  errors.description && 'border-red-500 focus-visible:ring-red-500 focus-visible:border-red-500',
+                  isSubmitting && 'opacity-60'
                 )}
               />
               {errors.description && (
@@ -214,4 +352,13 @@ export const CreateDocModal: React.FC<CreateDocModalProps> = ({
     </div>
   );
 };
+
+// Set display name for better debugging
+CreateDocModalComponent.displayName = 'CreateDocModalComponent';
+
+// Export memoized version - React.memo prevents remounting
+// It will re-render with new props when they change, but the component instance stays the same
+// This preserves state (docName, description) even when isSubmitting changes
+export const CreateDocModal = React.memo(CreateDocModalComponent);
+CreateDocModal.displayName = 'CreateDocModal';
 

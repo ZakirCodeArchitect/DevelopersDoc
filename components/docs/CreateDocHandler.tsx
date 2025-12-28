@@ -9,6 +9,8 @@ export function useCreateDoc() {
   const [isLoading, setIsLoading] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState<string | null>(null);
+  // CRITICAL: Store form values here so they persist even if modal remounts
+  const [storedFormValues, setStoredFormValues] = useState<{ name: string; description: string } | null>(null);
   const router = useRouter();
 
   const handleCreateDoc = useCallback((projectId?: string, projectName?: string) => {
@@ -19,6 +21,11 @@ export function useCreateDoc() {
 
   const handleCloseModal = useCallback(() => {
     if (!isLoading) {
+      console.log('[CreateDocHandler DEBUG] 🔴 HANDLER: Closing modal', {
+        stage: 'HANDLER_CLOSING_MODAL',
+        isLoading,
+        isModalOpen: true
+      });
       setIsModalOpen(false);
       setProjectId(null);
       setProjectName(null);
@@ -26,6 +33,17 @@ export function useCreateDoc() {
   }, [isLoading]);
 
   const handleSubmit = useCallback(async (name: string, description: string) => {
+    console.log('[CreateDocHandler DEBUG] 🟡 HANDLER: Starting submission', {
+      stage: 'HANDLER_STARTING_SUBMISSION',
+      name,
+      description,
+      isLoading: false,
+      willSetLoading: true
+    });
+    
+    // CRITICAL: Store form values in handler state before setting loading
+    // This ensures they persist even if modal component remounts
+    setStoredFormValues({ name, description });
     setIsLoading(true);
     
     try {
@@ -48,32 +66,46 @@ export function useCreateDoc() {
         throw new Error(data.error || 'Failed to create document');
       }
 
-      // Close modal immediately before navigation
-      setIsModalOpen(false);
-      setProjectId(null);
-      setProjectName(null);
-      
+      // Keep modal open with loading state while navigating
       // Navigate to the new document page
       router.push(data.href);
       
-      // Refresh the page to show the new document in the sidebar
-      router.refresh();
+      // Small delay to ensure form values stay visible during navigation
+      setTimeout(() => {
+        console.log('[CreateDocHandler DEBUG] 🔴 HANDLER: Closing modal after success', {
+          stage: 'HANDLER_CLOSING_AFTER_SUCCESS',
+          isLoading: true,
+          willClose: true
+        });
+        setIsLoading(false);
+        setIsModalOpen(false);
+        setProjectId(null);
+        setProjectName(null);
+        setStoredFormValues(null); // Clear stored values after closing
+        
+        // Refresh the page to show the new document in the sidebar
+        router.refresh();
+      }, 100);
     } catch (error) {
-      console.error('Error creating document:', error);
+      console.error('[CreateDocHandler] Error creating document:', error);
       alert(error instanceof Error ? error.message : 'Failed to create document');
-    } finally {
       setIsLoading(false);
     }
   }, [projectId, router]);
 
-  const Modal = () => (
+  // CRITICAL: Use stable key to ensure React treats it as same component instance
+  // Pass stored form values as prop so modal can restore them if needed
+  const Modal = useCallback(() => (
     <CreateDocModal
+      key="create-doc-modal" // Stable key - prevents remounting
       isOpen={isModalOpen}
       onClose={handleCloseModal}
       onSubmit={handleSubmit}
       projectName={projectName || undefined}
+      isSubmitting={isLoading}
+      storedFormValues={storedFormValues} // Pass stored values to restore if lost
     />
-  );
+  ), [isModalOpen, handleCloseModal, handleSubmit, projectName, isLoading, storedFormValues]);
 
   return {
     handleCreateDoc,
