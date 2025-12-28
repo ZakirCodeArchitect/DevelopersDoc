@@ -2,8 +2,10 @@
 
 import React, { useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Container } from '../ui/Container';
 import { Input } from '../ui/input';
+import { SignInButton, SignUpButton, UserButton, SignedIn, SignedOut } from '@clerk/nextjs';
 
 interface NavLink {
   label: string;
@@ -55,6 +57,8 @@ export const Header: React.FC<HeaderProps> = ({
 
   const socials = socialLinks || defaultSocialLinks;
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+  const isDocsRoute = pathname?.startsWith('/docs');
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -114,36 +118,65 @@ export const Header: React.FC<HeaderProps> = ({
             </nav>
           )}
 
-          {/* Search Input */}
-          <div className="relative hidden md:block">
-            <Input
-              ref={searchInputRef}
-              type="search"
-              placeholder={searchPlaceholder}
-              className="w-64 h-9 bg-background border border-blue-200/60 text-sm text-foreground placeholder:text-muted-foreground pr-20 focus:border-blue-400 focus:ring-2 focus:ring-blue-200/40 focus:ring-offset-0 focus-visible:outline-none transition-all"
-            />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs pointer-events-none">
-              <kbd className="hidden sm:inline-flex h-5 select-none items-center gap-1 rounded border border-gray-300/60 bg-white px-1.5 font-mono text-[10px] font-normal text-gray-700 shadow-sm">
-                ⌘ K
-              </kbd>
+          {/* Search Input - Only shown when signed in */}
+          <SignedIn>
+            <div className="relative hidden md:block">
+              <Input
+                ref={searchInputRef}
+                type="search"
+                placeholder={searchPlaceholder}
+                className="w-64 h-9 bg-background border border-blue-200/60 text-sm text-foreground placeholder:text-muted-foreground pr-20 focus:border-blue-400 focus:ring-2 focus:ring-blue-200/40 focus:ring-offset-0 focus-visible:outline-none transition-all"
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs pointer-events-none">
+                <kbd className="hidden sm:inline-flex h-5 select-none items-center gap-1 rounded border border-gray-300/60 bg-white px-1.5 font-mono text-[10px] font-normal text-gray-700 shadow-sm">
+                  ⌘ K
+                </kbd>
+              </div>
             </div>
+          </SignedIn>
+
+          {/* Authentication Buttons */}
+          <div className="flex items-center gap-3">
+            <SignedOut>
+              <SignInButton mode="redirect">
+                <button type="button" className="text-sm font-medium text-foreground/70 hover:text-foreground transition-colors px-3 py-1.5 rounded-md hover:bg-background/50">
+                  Sign In
+                </button>
+              </SignInButton>
+              <SignUpButton mode="redirect">
+                <button type="button" className="text-sm font-medium text-white bg-[#6c47ff] hover:bg-[#5a3ae6] transition-colors px-4 py-1.5 rounded-md">
+                  Sign Up
+                </button>
+              </SignUpButton>
+            </SignedOut>
+            <SignedIn>
+              <UserButton 
+                appearance={{
+                  elements: {
+                    avatarBox: "w-8 h-8"
+                  }
+                }}
+              />
+            </SignedIn>
           </div>
 
-          {/* Social Icons */}
-          <div className="flex items-center gap-4">
-            {socials.map((social) => (
-              <Link
-                key={social.name}
-                href={social.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-foreground/70 hover:text-foreground transition-colors"
-                aria-label={social.name}
-              >
-                {social.icon}
-              </Link>
-            ))}
-          </div>
+          {/* Social Icons - Hidden on docs routes */}
+          {!isDocsRoute && (
+            <div className="flex items-center gap-4">
+              {socials.map((social) => (
+                <Link
+                  key={social.name}
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-foreground/70 hover:text-foreground transition-colors"
+                  aria-label={social.name}
+                >
+                  {social.icon}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </header>

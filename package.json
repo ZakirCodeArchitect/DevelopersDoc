@@ -13,6 +13,8 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@clerk/nextjs": "^6.36.5",
+    "@prisma/client": "^5.20.0",
     "@tiptap/core": "^3.14.0",
     "@tiptap/extension-bubble-menu": "^3.14.0",
     "@tiptap/extension-character-count": "^3.14.0",
@@ -38,12 +40,11 @@
     "highlight.js": "^11.11.1",
     "lowlight": "^3.3.0",
     "next": "16.1.0",
+    "pg": "^8.13.1",
     "prosemirror-tables": "^1.8.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "tailwind-merge": "^2.5.4",
-    "@prisma/client": "^5.20.0",
-    "pg": "^8.13.1"
+    "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -52,9 +53,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.0",
-    "tailwindcss": "^4",
-    "typescript": "^5",
     "prisma": "^5.20.0",
-    "tsx": "^4.19.2"
+    "tailwindcss": "^4",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
   }
 }
