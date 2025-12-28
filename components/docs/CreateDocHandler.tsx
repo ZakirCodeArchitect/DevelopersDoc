@@ -48,7 +48,7 @@ export function useCreateDoc() {
         throw new Error(data.error || 'Failed to create document');
       }
 
-      // Close modal
+      // Close modal immediately before navigation
       setIsModalOpen(false);
       setProjectId(null);
       setProjectName(null);

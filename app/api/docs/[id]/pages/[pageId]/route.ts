@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-// Helper function to read docs data fresh from file
-async function readDocsData() {
-  const filePath = path.join(process.cwd(), 'data', 'docs.json');
-  const fileContents = await fs.readFile(filePath, 'utf-8');
-  return JSON.parse(fileContents);
-}
+import { updatePage, prisma } from '@/lib/db';
+import type { DocumentSection } from '@/lib/docs';
 
 // Helper to render a Tiptap node to HTML
 function renderNodeToHTML(node: any): string {
@@ -410,10 +403,7 @@ export async function PATCH(
     const pageId = resolvedParams.pageId;
     const body = await request.json();
     const { content, projectId } = body;
-    
-    // Read fresh data from file
-    const docsData = await readDocsData();
-    
+
     // DEBUG: Log what the server receives
     console.log('🟡 [DEBUG API PATCH] Received save request:', {
       docId,
@@ -438,109 +428,25 @@ export async function PATCH(
     // DEBUG: Log sections after conversion
     console.log('🟡 [DEBUG API PATCH] Converted sections:', JSON.stringify(sections, null, 2));
 
-    // If projectId is provided, update page in project document
-    if (projectId) {
-      const project = docsData.projects.find((p) => p.id === projectId);
-      if (!project) {
-        return NextResponse.json(
-          { error: 'Project not found' },
-          { status: 404 }
-        );
-      }
+    // docId is a UUID
+    const document = await prisma.document.findUnique({
+      where: { id: docId },
+    });
 
-      const doc = project.documents?.find((d) => d.id === docId);
-      if (!doc) {
-        return NextResponse.json(
-          { error: 'Document not found' },
-          { status: 404 }
-        );
-      }
-
-      const docContent = doc.content as any;
-      // Initialize pages array if it doesn't exist
-      if (!docContent.pages) {
-        docContent.pages = [];
-      }
-
-      let page = docContent.pages.find((p: any) => p.id === pageId);
-      
-      // Create page if it doesn't exist
-      if (!page) {
-        page = {
-          id: pageId,
-          title: title,
-          sections: sections,
-        };
-        docContent.pages.push(page);
-      } else {
-        // Update existing page title and sections
-        page.title = title;
-        page.sections = sections;
-      }
-
-      // Update lastUpdated date
-      doc.lastUpdated = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-
-      // Write to file
-      const filePath = path.join(process.cwd(), 'data', 'docs.json');
-      await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
-
-      return NextResponse.json({
-        success: true,
-        page,
-      });
-    } else {
-      // Update page in "Your Docs" document
-      const doc = docsData.yourDocs.find((d) => d.id === docId);
-      if (!doc) {
-        return NextResponse.json(
-          { error: 'Document not found' },
-          { status: 404 }
-        );
-      }
-
-      const docContent = doc.content as any;
-      // Initialize pages array if it doesn't exist
-      if (!docContent.pages) {
-        docContent.pages = [];
-      }
-
-      let page = docContent.pages.find((p: any) => p.id === pageId);
-      
-      // Create page if it doesn't exist
-      if (!page) {
-        page = {
-          id: pageId,
-          title: title,
-          sections: sections,
-        };
-        docContent.pages.push(page);
-      } else {
-        // Update existing page title and sections
-        page.title = title;
-        page.sections = sections;
-      }
-
-      // Update lastUpdated date
-      doc.lastUpdated = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-
-      // Write to file
-      const filePath = path.join(process.cwd(), 'data', 'docs.json');
-      await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
-
-      return NextResponse.json({
-        success: true,
-        page,
-      });
+    if (!document) {
+      return NextResponse.json(
+        { error: 'Document not found' },
+        { status: 404 }
+      );
     }
+
+    // Update or create page using updatePage function (it expects slugs)
+    const page = await updatePage(docId, pageId, title, sections as DocumentSection[], projectId);
+
+    return NextResponse.json({
+      success: true,
+      page,
+    });
   } catch (error) {
     console.error('Error updating page:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';

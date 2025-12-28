@@ -38,7 +38,7 @@ export function useCreateProject() {
         throw new Error(data.error || 'Failed to create project');
       }
 
-      // Close modal
+      // Close modal immediately before navigation
       setIsModalOpen(false);
       
       // Navigate to the new project page

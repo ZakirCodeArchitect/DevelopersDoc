@@ -1,18 +1,16 @@
-import docsData from '@/data/docs.json';
 import {
   processProjects,
   processYourDocs,
   buildSidebarItems,
-  type DocsData,
 } from '@/lib/docs';
+import { getAllDocsData } from '@/lib/db';
 import { DocsLayoutClient } from '@/components/docs/DocsLayoutClient';
-import type { NavItem } from '@/components/docs';
 import { cache } from 'react';
 
 // Cache the processed data to prevent recreating objects on every navigation
 // This ensures the same object references are used across navigations
-const getProcessedDocsData = cache(() => {
-  const data = docsData as DocsData;
+const getProcessedDocsData = cache(async () => {
+  const data = await getAllDocsData();
   const processedProjects = processProjects(data.projects);
   const processedYourDocs = processYourDocs(data.yourDocs);
   const sidebarItems = buildSidebarItems(processedProjects, processedYourDocs);
@@ -30,7 +28,7 @@ export default async function DocsLayout({
   children: React.ReactNode;
 }) {
   // Use cached data to maintain same object references across navigations
-  const { processedProjects, processedYourDocs, sidebarItems } = getProcessedDocsData();
+  const { processedProjects, processedYourDocs, sidebarItems } = await getProcessedDocsData();
 
   return (
     <DocsLayoutClient

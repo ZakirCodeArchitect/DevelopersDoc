@@ -2,24 +2,21 @@ import {
   processProjects,
   processYourDocs,
   findDocumentByPath,
-  migrateSectionsToPages,
   isPage,
   type ProcessedDocument,
   type ProcessedProject,
   type ProcessedYourDoc,
   type ProcessedPage,
-  type DocsData,
 } from '@/lib/docs';
-import docsDataRaw from '@/data/docs.json';
+import { getAllDocsData } from '@/lib/db';
 import { DocsPageContent } from '@/components/docs/DocsPageContent';
 import { DocsLandingPage } from '@/components/docs/DocsLandingPage';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
 
 // Cache the processed data to prevent recreating objects on every navigation
-const getProcessedDocsData = cache(() => {
-  const migratedData = migrateSectionsToPages({ ...docsDataRaw });
-  const data = migratedData as DocsData;
+const getProcessedDocsData = cache(async () => {
+  const data = await getAllDocsData();
   const processedProjects = processProjects(data.projects);
   const processedYourDocs = processYourDocs(data.yourDocs);
   
@@ -41,7 +38,7 @@ export default async function DocsPage({ params }: DocsPageProps) {
   const currentPath = slug.length > 0 ? `/docs/${slug.join('/')}` : '/docs';
 
   // Use cached data to maintain same object references across navigations
-  const { processedProjects, processedYourDocs } = getProcessedDocsData();
+  const { processedProjects, processedYourDocs } = await getProcessedDocsData();
 
   // Find the current page
   let currentPage = findDocumentByPath(currentPath, processedProjects, processedYourDocs);

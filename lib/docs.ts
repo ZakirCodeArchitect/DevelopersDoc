@@ -12,6 +12,7 @@ export interface DocumentSection {
 export interface DocumentPage {
   id: string;
   title: string;
+  pageNumber?: number;
   sections: DocumentSection[];
 }
 

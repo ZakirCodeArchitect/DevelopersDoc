@@ -21,12 +21,16 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [errors, setErrors] = useState<{ name?: string; description?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reset form when modal opens/closes
+  // Reset form when modal closes (delay to prevent showing empty form during close animation)
   useEffect(() => {
     if (!isOpen) {
-      setProjectName('');
-      setDescription('');
-      setErrors({});
+      // Reset form after modal close animation completes
+      const timer = setTimeout(() => {
+        setProjectName('');
+        setDescription('');
+        setErrors({});
+      }, 300); // Wait for close animation to complete
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 

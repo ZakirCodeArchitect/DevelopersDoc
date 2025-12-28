@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-// Helper function to read docs data fresh from file
-async function readDocsData() {
-  const filePath = path.join(process.cwd(), 'data', 'docs.json');
-  const fileContents = await fs.readFile(filePath, 'utf-8');
-  return JSON.parse(fileContents);
-}
+import { updateProject, deleteProject, prisma } from '@/lib/db';
 
 export async function PATCH(
   request: NextRequest,
@@ -18,9 +10,6 @@ export async function PATCH(
     const projectId = resolvedParams.id;
     const body = await request.json();
     const { name } = body;
-    
-    // Read fresh data from file
-    const docsData = await readDocsData();
 
     if (!name) {
       return NextResponse.json(
@@ -29,21 +18,20 @@ export async function PATCH(
       );
     }
 
-    const project = docsData.projects.find((p) => p.id === projectId);
-    if (!project) {
+    // projectId is a UUID in URLs, check if project exists by id
+    const existingProject = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!existingProject) {
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
       );
     }
 
-    // Update project name
-    project.label = name;
-    project.title = name;
-
-    // Write to file
-    const filePath = path.join(process.cwd(), 'data', 'docs.json');
-    await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
+    // Update project (updateProject expects UUID)
+    const project = await updateProject(existingProject.id, name);
 
     return NextResponse.json({
       success: true,
@@ -65,24 +53,21 @@ export async function DELETE(
   try {
     const resolvedParams = await params;
     const projectId = resolvedParams.id;
-    
-    // Read fresh data from file
-    const docsData = await readDocsData();
 
-    const projectIndex = docsData.projects.findIndex((p) => p.id === projectId);
-    if (projectIndex === -1) {
+    // projectId is a UUID in URLs, check if project exists by id
+    const existingProject = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!existingProject) {
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
       );
     }
 
-    // Remove project
-    docsData.projects.splice(projectIndex, 1);
-
-    // Write to file
-    const filePath = path.join(process.cwd(), 'data', 'docs.json');
-    await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
+    // Delete project (deleteProject expects UUID)
+    await deleteProject(existingProject.id);
 
     return NextResponse.json({
       success: true,

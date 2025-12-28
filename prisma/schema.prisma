@@ -1,0 +1,74 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")      // Pooler connection for application runtime
+  directUrl = env("DIRECT_URL")        // Direct connection for migrations and CLI
+}
+
+model Project {
+  id          String     @id @default(uuid())
+  label       String
+  title       String
+  description String?
+  lastUpdated String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  documents   Document[]
+
+  @@map("projects")
+}
+
+model Document {
+  id          String   @id @default(uuid())
+  label       String
+  title       String
+  description String?
+  lastUpdated String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // If projectId is null, it's a "Your Docs" document
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  pages       Page[]
+
+  @@map("documents")
+}
+
+model Page {
+  id        String     @id @default(uuid())
+  title     String
+  pageNumber Int       @default(1)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  documentId String
+  document   Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  sections  Section[]
+
+  @@map("pages")
+}
+
+model Section {
+  id          String   @id @default(uuid())
+  title       String
+  type        String   // 'text' | 'html' | 'component'
+  content     String[] // Array of strings stored as JSON
+  componentType String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  pageId      String
+  page        Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@map("sections")
+}
+

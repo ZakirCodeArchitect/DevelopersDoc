@@ -605,7 +605,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
               )}
             </div>
           ) : (
-            <div className="flex-1 flex items-center gap-1group min-w-0">
+            <div className="flex-1 flex items-center gap-1 group min-w-0">
             <Link
               href={item.href}
                 prefetch={false}

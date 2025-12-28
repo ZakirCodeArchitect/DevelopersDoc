@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-// Helper function to read docs data fresh from file
-async function readDocsData() {
-  const filePath = path.join(process.cwd(), 'data', 'docs.json');
-  const fileContents = await fs.readFile(filePath, 'utf-8');
-  return JSON.parse(fileContents);
-}
+import { addPageToDocument, prisma } from '@/lib/db';
 
 export async function POST(
   request: NextRequest,
@@ -18,9 +10,6 @@ export async function POST(
     const docId = resolvedParams.id;
     const body = await request.json();
     const { title, content, projectId } = body;
-    
-    // Read fresh data from file
-    const docsData = await readDocsData();
 
     if (!title) {
       return NextResponse.json(
@@ -29,165 +18,46 @@ export async function POST(
       );
     }
 
-    // Generate page ID from title
-    const pageId = title
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+    // docId is a UUID
+    const document = await prisma.document.findUnique({
+      where: { id: docId },
+    });
+
+    if (!document) {
+      return NextResponse.json(
+        { error: 'Document not found' },
+        { status: 404 }
+      );
+    }
 
     // Default content if not provided
     const sectionContent = content || [''];
 
-    // Create a new page with a default section (without duplicate title)
-    const newPage = {
-      id: pageId,
-      title: title.trim(),
-      sections: [{
-        id: `${pageId}-section`,
-        title: '', // Don't duplicate the page title as section title
-        type: 'text' as const,
-        content: Array.isArray(sectionContent) ? sectionContent : [sectionContent],
-      }],
-    };
+    // Add page to document (addPageToDocument expects UUID)
+    const newPage = await addPageToDocument(
+      docId,
+      title.trim(),
+      Array.isArray(sectionContent) ? sectionContent : [sectionContent],
+      projectId
+    );
 
-    // If projectId is provided, add section to document in project
-    if (projectId) {
-      const project = docsData.projects.find((p) => p.id === projectId);
-      if (!project) {
-        return NextResponse.json(
-          { error: 'Project not found' },
-          { status: 404 }
-        );
-      }
-
-      const doc = project.documents?.find((d) => d.id === docId);
-      if (!doc) {
-        return NextResponse.json(
-          { error: 'Document not found' },
-          { status: 404 }
-        );
-      }
-
-      // Migrate old structure if needed (for backward compatibility)
-      const docContent = doc.content as any;
-      if (docContent.sections && !docContent.pages) {
-        docContent.pages = docContent.sections.map((section: any) => ({
-          id: section.id,
-          title: section.title,
-          sections: [{
-            id: `${section.id}-section`,
-            title: section.title,
-            type: section.type || 'text',
-            content: section.content || [],
-            componentType: section.componentType,
-          }],
-        }));
-        delete docContent.sections;
-      }
-
-      // Ensure pages array exists
-      if (!docContent.pages) {
-        docContent.pages = [];
-      }
-
-      // Check if page with same ID already exists
-      if (docContent.pages.some((p: any) => p.id === pageId)) {
-        // If exists, append a number to make it unique
-        let uniqueId = pageId;
-        let counter = 1;
-        while (docContent.pages.some((p: any) => p.id === uniqueId)) {
-          uniqueId = `${pageId}-${counter}`;
-          counter++;
+    // Get updated document by UUID
+    const updatedDoc = await prisma.document.findUnique({
+      where: { id: docId },
+      include: {
+        pages: {
+          include: {
+            sections: true
+          }
         }
-        newPage.id = uniqueId;
-        newPage.sections[0].id = `${uniqueId}-section`;
       }
+    });
 
-      // Add page to document
-      docContent.pages.push(newPage);
-
-      // Update lastUpdated date
-      doc.lastUpdated = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-
-      // Write to file
-      const filePath = path.join(process.cwd(), 'data', 'docs.json');
-      await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
-
-      return NextResponse.json({
-        success: true,
-        page: newPage,
-        doc,
-      });
-    } else {
-      // Add page to document in "Your Docs"
-      const doc = docsData.yourDocs.find((d) => d.id === docId);
-      if (!doc) {
-        return NextResponse.json(
-          { error: 'Document not found' },
-          { status: 404 }
-        );
-      }
-
-      // Migrate old structure if needed (for backward compatibility)
-      const docContent = doc.content as any;
-      if (docContent.sections && !docContent.pages) {
-        docContent.pages = docContent.sections.map((section: any) => ({
-          id: section.id,
-          title: section.title,
-          sections: [{
-            id: `${section.id}-section`,
-            title: section.title,
-            type: section.type || 'text',
-            content: section.content || [],
-            componentType: section.componentType,
-          }],
-        }));
-        delete docContent.sections;
-      }
-
-      // Ensure pages array exists
-      if (!docContent.pages) {
-        docContent.pages = [];
-      }
-
-      // Check if page with same ID already exists
-      if (docContent.pages.some((p: any) => p.id === pageId)) {
-        // If exists, append a number to make it unique
-        let uniqueId = pageId;
-        let counter = 1;
-        while (docContent.pages.some((p: any) => p.id === uniqueId)) {
-          uniqueId = `${pageId}-${counter}`;
-          counter++;
-        }
-        newPage.id = uniqueId;
-        newPage.sections[0].id = `${uniqueId}-section`;
-      }
-
-      // Add page to document
-      docContent.pages.push(newPage);
-
-      // Update lastUpdated date
-      doc.lastUpdated = new Date().toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-
-      // Write to file
-      const filePath = path.join(process.cwd(), 'data', 'docs.json');
-      await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
-
-      return NextResponse.json({
-        success: true,
-        page: newPage,
-        doc,
-      });
-    }
+    return NextResponse.json({
+      success: true,
+      page: newPage,
+      doc: updatedDoc,
+    });
   } catch (error) {
     console.error('Error adding page:', error);
     return NextResponse.json(

@@ -23,12 +23,16 @@ export const CreateDocModal: React.FC<CreateDocModalProps> = ({
   const [errors, setErrors] = useState<{ name?: string; description?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reset form when modal opens/closes
+  // Reset form when modal closes (delay to prevent showing empty form during close animation)
   useEffect(() => {
     if (!isOpen) {
-      setDocName('');
-      setDescription('');
-      setErrors({});
+      // Reset form after modal close animation completes
+      const timer = setTimeout(() => {
+        setDocName('');
+        setDescription('');
+        setErrors({});
+      }, 300); // Wait for close animation to complete
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 

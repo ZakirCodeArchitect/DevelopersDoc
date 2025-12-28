@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-// Helper function to read docs data fresh from file
-async function readDocsData() {
-  const filePath = path.join(process.cwd(), 'data', 'docs.json');
-  const fileContents = await fs.readFile(filePath, 'utf-8');
-  return JSON.parse(fileContents);
-}
+import { updateDocument, deleteDocument, prisma } from '@/lib/db';
 
 export async function PATCH(
   request: NextRequest,
@@ -19,9 +11,6 @@ export async function PATCH(
     const docId = resolvedParams.id;
     const body = await request.json();
     const { name, projectId } = body;
-    
-    // Read fresh data from file
-    const docsData = await readDocsData();
 
     if (!name) {
       return NextResponse.json(
@@ -30,93 +19,44 @@ export async function PATCH(
       );
     }
 
-    // If projectId is provided, update document in project
+    // docId is a UUID
+    const existingDoc = await prisma.document.findUnique({
+      where: { id: docId },
+    });
+
+    if (!existingDoc) {
+      return NextResponse.json(
+        { error: 'Document not found' },
+        { status: 404 }
+      );
+    }
+
+    // If projectId is provided, verify project exists (projectId is a UUID)
     if (projectId) {
-      const project = docsData.projects.find((p) => p.id === projectId);
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+      });
+
       if (!project) {
         return NextResponse.json(
           { error: 'Project not found' },
           { status: 404 }
         );
       }
-
-      const doc = project.documents?.find((d) => d.id === docId);
-      if (!doc) {
-        return NextResponse.json(
-          { error: 'Document not found' },
-          { status: 404 }
-        );
-      }
-
-      // Generate new document ID from name
-      const newDocId = name
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-
-      // Check if new ID conflicts with existing document
-      if (newDocId !== docId && project.documents?.some((d) => d.id === newDocId)) {
-        return NextResponse.json(
-          { error: 'A document with this name already exists in this project' },
-          { status: 409 }
-        );
-      }
-
-      // Update document
-      doc.id = newDocId;
-      doc.label = name;
-      doc.title = name;
-
-      // Write to file
-      const filePath = path.join(process.cwd(), 'data', 'docs.json');
-      await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
-
-      return NextResponse.json({
-        success: true,
-        doc,
-        newHref: `/docs/projects/${projectId}/${newDocId}`,
-      });
-    } else {
-      // Update document in "Your Docs"
-      const doc = docsData.yourDocs.find((d) => d.id === docId);
-      if (!doc) {
-        return NextResponse.json(
-          { error: 'Document not found' },
-          { status: 404 }
-        );
-      }
-
-      // Generate new document ID from name
-      const newDocId = name
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-
-      // Check if new ID conflicts with existing document
-      if (newDocId !== docId && docsData.yourDocs.some((d) => d.id === newDocId)) {
-        return NextResponse.json(
-          { error: 'A document with this name already exists' },
-          { status: 409 }
-        );
-      }
-
-      // Update document
-      doc.id = newDocId;
-      doc.label = name;
-      doc.title = name;
-
-      // Write to file
-      const filePath = path.join(process.cwd(), 'data', 'docs.json');
-      await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
-
-      return NextResponse.json({
-        success: true,
-        doc,
-        newHref: `/docs/${newDocId}`,
-      });
     }
+
+    // Update document (updateDocument expects slug and handles slug generation)
+    const doc = await updateDocument(docId, name, projectId);
+
+    const newHref = projectId 
+      ? `/docs/projects/${projectId}/${doc.id}`
+      : `/docs/${doc.id}`;
+
+    return NextResponse.json({
+      success: true,
+      doc,
+      newHref,
+    });
   } catch (error) {
     console.error('Error renaming document:', error);
     return NextResponse.json(
@@ -135,66 +75,31 @@ export async function DELETE(
     const docId = resolvedParams.id;
     const body = await request.json();
     const { projectId } = body;
-    
-    // Read fresh data from file
-    const docsData = await readDocsData();
 
-    // If projectId is provided, delete document from project
-    if (projectId) {
-      const project = docsData.projects.find((p) => p.id === projectId);
-      if (!project) {
-        return NextResponse.json(
-          { error: 'Project not found' },
-          { status: 404 }
-        );
-      }
+    // docId is a UUID
+    const existingDoc = await prisma.document.findUnique({
+      where: { id: docId },
+    });
 
-      const docIndex = project.documents?.findIndex((d) => d.id === docId) ?? -1;
-      if (docIndex === -1) {
-        return NextResponse.json(
-          { error: 'Document not found' },
-          { status: 404 }
-        );
-      }
-
-      // Remove document from project
-      project.documents?.splice(docIndex, 1);
-
-      // Write to file
-      const filePath = path.join(process.cwd(), 'data', 'docs.json');
-      await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
-
-      // Revalidate the project page and docs pages to clear cache
-      revalidatePath(`/docs/projects/${projectId}`);
-      revalidatePath('/docs', 'layout');
-
-      return NextResponse.json({
-        success: true,
-      });
-    } else {
-      // Delete document from "Your Docs"
-      const docIndex = docsData.yourDocs.findIndex((d) => d.id === docId);
-      if (docIndex === -1) {
-        return NextResponse.json(
-          { error: 'Document not found' },
-          { status: 404 }
-        );
-      }
-
-      // Remove document
-      docsData.yourDocs.splice(docIndex, 1);
-
-      // Write to file
-      const filePath = path.join(process.cwd(), 'data', 'docs.json');
-      await fs.writeFile(filePath, JSON.stringify(docsData, null, 2), 'utf-8');
-
-      // Revalidate docs pages to clear cache
-      revalidatePath('/docs', 'layout');
-
-      return NextResponse.json({
-        success: true,
-      });
+    if (!existingDoc) {
+      return NextResponse.json(
+        { error: 'Document not found' },
+        { status: 404 }
+      );
     }
+
+    // Delete document (deleteDocument expects slug)
+    await deleteDocument(docId, projectId);
+
+    // Revalidate the project page and docs pages to clear cache
+    if (projectId) {
+      revalidatePath(`/docs/projects/${projectId}`);
+    }
+    revalidatePath('/docs', 'layout');
+
+    return NextResponse.json({
+      success: true,
+    });
   } catch (error) {
     console.error('Error deleting document:', error);
     return NextResponse.json(
