@@ -1,7 +1,7 @@
-export { Button, buttonVariants } from './button';
-export { Container } from './Container';
-export { Section } from './Section';
-export { Input } from './input';
-export type { ButtonProps } from './button';
-export type { InputProps } from './input';
+export { Button, buttonVariants } from './button.tsx';
+export { Container } from './Container.tsx';
+export { Section } from './Section.tsx';
+export { Input } from './input.tsx';
+export type { ButtonProps } from './button.tsx';
+export type { InputProps } from './input.tsx';
 
