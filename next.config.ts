@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
       "@": path.resolve(__dirname),
     };
     config.resolve.fallback = { fs: false, net: false, tls: false };
+    // Enable extension resolution for better module resolution
+    config.resolve.extensions = ['.tsx', '.ts', '.jsx', '.js', '.json'];
     return config;
   },
 };
