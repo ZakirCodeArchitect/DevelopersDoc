@@ -125,7 +125,7 @@ export function PublishedDocViewer({ slug }: PublishedDocViewerProps) {
       return <CodeBlock key={section.id} code={codeContent} language="javascript" />;
     } else if (section.type === 'component' && section.componentType === 'button') {
       const buttonText = Array.isArray(section.content) ? section.content[0] || 'Click me' : 'Click me';
-      return <InteractiveButton key={section.id} text={buttonText} />;
+      return <InteractiveButton key={section.id} label={buttonText} />;
     }
     return null;
   };

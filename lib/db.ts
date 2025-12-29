@@ -397,20 +397,20 @@ export async function getAllDocsNavData(userId: string): Promise<DocsData> {
   }
 
   // Convert shared projects to ProjectData format (nav-only)
-  const sharedProjectsData: ProjectData[] = sharedProjects.map(project => ({
+  const sharedProjectsData: ProjectData[] = sharedProjects.map((project: any) => ({
     id: project.id,
     label: project.label,
     title: project.title,
     description: project.description || undefined,
     lastUpdated: project.lastUpdated,
-    documents: project.documents.map(doc => ({
+    documents: project.documents.map((doc: any) => ({
       id: doc.id,
       label: doc.label,
       title: doc.title,
       description: doc.description || undefined,
       lastUpdated: doc.lastUpdated,
       content: {
-        pages: doc.pages.map(page => ({
+        pages: doc.pages.map((page: any) => ({
           id: page.id,
           title: page.title,
           pageNumber: page.pageNumber,
@@ -423,14 +423,14 @@ export async function getAllDocsNavData(userId: string): Promise<DocsData> {
   // Convert shared documents to YourDocData format (nav-only)
   // Include ALL directly shared documents, even if they belong to a project
   // (Users with direct document access should see it, even if they don't have project access)
-  const sharedYourDocsData: YourDocData[] = sharedYourDocs.map(doc => ({
+  const sharedYourDocsData: YourDocData[] = sharedYourDocs.map((doc: any) => ({
     id: doc.id,
     label: doc.label,
     title: doc.title,
     description: doc.description || undefined,
     lastUpdated: doc.lastUpdated,
     content: {
-      pages: doc.pages.map(page => ({
+      pages: doc.pages.map((page: any) => ({
         id: page.id,
         title: page.title,
         pageNumber: page.pageNumber,

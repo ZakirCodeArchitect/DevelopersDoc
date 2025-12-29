@@ -3,6 +3,7 @@ import {
   processYourDocs,
   processPublishedDocs,
   buildSidebarItems,
+  type ProcessedYourDoc,
 } from '@/lib/docs';
 import { getAllDocsNavData, getAllPublishedDocsNav } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';

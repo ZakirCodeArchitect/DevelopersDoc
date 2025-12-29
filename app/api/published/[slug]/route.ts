@@ -13,46 +13,51 @@ export async function GET(
     const resolvedParams = await params;
     const slug = resolvedParams.slug;
 
-    // Fetch published document by slug
-    const document = await prisma.document.findFirst({
+    // Fetch published document by slug through PublishedDocument relation
+    const publishedDoc = await prisma.publishedDocument.findUnique({
       where: {
         publishSlug: slug,
-        isPublished: true,
       },
       include: {
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            imageUrl: true,
-          },
-        },
-        pages: {
+        document: {
           include: {
-            sections: {
-              orderBy: { createdAt: 'asc' },
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                imageUrl: true,
+              },
+            },
+            pages: {
+              include: {
+                sections: {
+                  orderBy: { createdAt: 'asc' },
+                },
+              },
+              orderBy: { pageNumber: 'asc' },
             },
           },
-          orderBy: { pageNumber: 'asc' },
         },
       },
     });
 
-    if (!document) {
+    if (!publishedDoc || !publishedDoc.document) {
       return NextResponse.json(
         { error: 'Published document not found' },
         { status: 404 }
       );
     }
 
+    const document = publishedDoc.document;
+
     return NextResponse.json({
       id: document.id,
       title: document.title,
       description: document.description,
-      publishSlug: document.publishSlug,
-      publishedAt: document.publishedAt,
+      publishSlug: publishedDoc.publishSlug,
+      publishedAt: publishedDoc.publishedAt,
       lastUpdated: document.lastUpdated,
       author: {
         id: document.user.id,

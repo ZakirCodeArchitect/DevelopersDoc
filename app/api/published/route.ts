@@ -13,44 +13,47 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0', 10);
     const search = searchParams.get('search') || '';
 
-    // Fetch published documents
-    const where = {
-      isPublished: true,
-      ...(search
-        ? {
+    // Fetch published documents through PublishedDocument relation
+    const where = search
+      ? {
+          document: {
             OR: [
               { title: { contains: search, mode: 'insensitive' as const } },
               { description: { contains: search, mode: 'insensitive' as const } },
             ],
-          }
-        : {}),
-    };
+          },
+        }
+      : {};
 
-    const [documents, total] = await Promise.all([
-      prisma.document.findMany({
+    const [publishedDocs, total] = await Promise.all([
+      prisma.publishedDocument.findMany({
         where,
         include: {
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-              imageUrl: true,
-            },
-          },
-          pages: {
-            select: {
-              id: true,
-              title: true,
-              pageNumber: true,
-            },
-            orderBy: { pageNumber: 'asc' },
-            take: 1, // Just get first page for preview
-          },
-          _count: {
-            select: {
-              pages: true,
+          document: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                  imageUrl: true,
+                },
+              },
+              pages: {
+                select: {
+                  id: true,
+                  title: true,
+                  pageNumber: true,
+                },
+                orderBy: { pageNumber: 'asc' },
+                take: 1, // Just get first page for preview
+              },
+              _count: {
+                select: {
+                  pages: true,
+                },
+              },
             },
           },
         },
@@ -58,29 +61,32 @@ export async function GET(request: NextRequest) {
         take: limit,
         skip: offset,
       }),
-      prisma.document.count({ where }),
+      prisma.publishedDocument.count({ where }),
     ]);
 
     return NextResponse.json({
-      documents: documents.map((doc) => ({
-        id: doc.id,
-        title: doc.title,
-        description: doc.description,
-        publishSlug: doc.publishSlug,
-        publishedAt: doc.publishedAt,
-        lastUpdated: doc.lastUpdated,
-        author: {
-          id: doc.user.id,
-          name: `${doc.user.firstName || ''} ${doc.user.lastName || ''}`.trim() || doc.user.email,
-          email: doc.user.email,
-          imageUrl: doc.user.imageUrl,
-        },
-        pageCount: doc._count.pages,
-        firstPage: doc.pages[0] ? {
-          id: doc.pages[0].id,
-          title: doc.pages[0].title,
-        } : null,
-      })),
+      documents: publishedDocs.map((publishedDoc) => {
+        const doc = publishedDoc.document;
+        return {
+          id: doc.id,
+          title: doc.title,
+          description: doc.description,
+          publishSlug: publishedDoc.publishSlug,
+          publishedAt: publishedDoc.publishedAt,
+          lastUpdated: doc.lastUpdated,
+          author: {
+            id: doc.user.id,
+            name: `${doc.user.firstName || ''} ${doc.user.lastName || ''}`.trim() || doc.user.email,
+            email: doc.user.email,
+            imageUrl: doc.user.imageUrl,
+          },
+          pageCount: doc._count.pages,
+          firstPage: doc.pages[0] ? {
+            id: doc.pages[0].id,
+            title: doc.pages[0].title,
+          } : null,
+        };
+      }),
       total,
       limit,
       offset,

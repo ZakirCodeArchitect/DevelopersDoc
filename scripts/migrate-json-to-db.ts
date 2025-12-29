@@ -29,7 +29,9 @@ async function migrateData() {
       console.log(`  📁 Migrating project: ${project.label}`);
 
       // Create project
-      await prisma.project.upsert({
+      // Note: userId is required but may not be in legacy JSON data
+      // This migration script should be updated to handle userId properly
+      await (prisma.project.upsert as any)({
         where: { id: project.id },
         update: {
           label: project.label,
@@ -43,6 +45,7 @@ async function migrateData() {
           title: project.title,
           description: project.description || null,
           lastUpdated: project.lastUpdated,
+          userId: (project as any).userId || '00000000-0000-0000-0000-000000000000', // Placeholder for legacy data
         },
       });
 
@@ -51,7 +54,8 @@ async function migrateData() {
         console.log(`    📄 Migrating document: ${doc.label}`);
 
         // Create document
-        await prisma.document.upsert({
+        // Note: userId is required but may not be in legacy JSON data
+        await (prisma.document.upsert as any)({
           where: { id: doc.id },
           update: {
             label: doc.label,
@@ -67,6 +71,7 @@ async function migrateData() {
             description: doc.description || null,
             lastUpdated: doc.lastUpdated,
             projectId: project.id,
+            userId: (doc as any).userId || (project as any).userId || '00000000-0000-0000-0000-000000000000', // Placeholder for legacy data
           },
         });
 
@@ -123,7 +128,8 @@ async function migrateData() {
       console.log(`  📄 Migrating "Your Doc": ${doc.label}`);
 
       // Create document
-      await prisma.document.upsert({
+      // Note: userId is required but may not be in legacy JSON data
+      await (prisma.document.upsert as any)({
         where: { id: doc.id },
         update: {
           label: doc.label,
@@ -139,6 +145,7 @@ async function migrateData() {
           description: doc.description || null,
           lastUpdated: doc.lastUpdated,
           projectId: null,
+          userId: (doc as any).userId || '00000000-0000-0000-0000-000000000000', // Placeholder for legacy data
         },
       });
 
