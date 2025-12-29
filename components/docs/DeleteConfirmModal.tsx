@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '../ui/button';
 
 interface DeleteConfirmModalProps {
   isOpen: boolean;

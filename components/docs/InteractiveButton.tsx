@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { Button } from '../ui/button';
 
 interface InteractiveButtonProps {
   label?: string;
