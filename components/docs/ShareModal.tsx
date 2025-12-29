@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { Button, Input } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
