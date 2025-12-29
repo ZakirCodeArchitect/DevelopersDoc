@@ -6,29 +6,24 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   // Force webpack usage and configure module resolution
-  webpack: (config, { isServer }) => {
-    // Configure path aliases
+  webpack: (config) => {
+    // Configure path aliases - use absolute path
+    const projectRoot = path.resolve(process.cwd());
     config.resolve.alias = {
-      ...config.resolve.alias,
-      "@": path.resolve(__dirname),
+      ...(config.resolve.alias || {}),
+      "@": projectRoot,
     };
     
     // Configure fallbacks for Node.js modules
+    if (!config.resolve.fallback) {
+      config.resolve.fallback = {};
+    }
     config.resolve.fallback = { 
+      ...config.resolve.fallback,
       fs: false, 
       net: false, 
       tls: false,
-      ...config.resolve.fallback,
     };
-    
-    // Ensure proper extension resolution
-    if (!config.resolve.extensions) {
-      config.resolve.extensions = [];
-    }
-    config.resolve.extensions.push('.tsx', '.ts', '.jsx', '.js', '.json');
-    
-    // Make module resolution more lenient
-    config.resolve.symlinks = false;
     
     return config;
   },
