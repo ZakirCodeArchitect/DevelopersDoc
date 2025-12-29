@@ -86,6 +86,7 @@ interface DocsPageContentProps {
   currentPage: ProcessedDocument | ProcessedProject | ProcessedYourDoc | ProcessedPage | null;
   processedProjects: ProcessedProject[];
   processedYourDocs: ProcessedYourDoc[];
+  canEdit?: boolean; // If false, user is a viewer and cannot edit
 }
 
 const DocsPageContentComponent = ({
@@ -93,6 +94,7 @@ const DocsPageContentComponent = ({
   currentPage,
   processedProjects,
   processedYourDocs,
+  canEdit = true, // Default to true for backward compatibility
 }: DocsPageContentProps) => {
   const [activeTocId, setActiveTocId] = useState<string | undefined>();
   const [isEditing, setIsEditing] = useState(false);
@@ -108,10 +110,31 @@ const DocsPageContentComponent = ({
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareItemId, setShareItemId] = useState<string>('');
   const [shareItemName, setShareItemName] = useState<string>('');
+  const [shareType, setShareType] = useState<'document' | 'project'>('document');
+
+  // Project members state
+  interface ProjectMember {
+    id: string;
+    email: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    imageUrl?: string | null;
+    role: 'owner' | 'editor' | 'viewer';
+  }
+  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
 
   const handleShareDocument = (documentId: string, documentName: string) => {
     setShareItemId(documentId);
     setShareItemName(documentName);
+    setShareType('document');
+    setShareModalOpen(true);
+  };
+
+  const handleShareProject = (projectId: string, projectName: string) => {
+    setShareItemId(projectId);
+    setShareItemName(projectName);
+    setShareType('project');
     setShareModalOpen(true);
   };
   
@@ -157,6 +180,73 @@ const DocsPageContentComponent = ({
       </div>
     );
   }
+
+  // Fetch project members when viewing a project
+  useEffect(() => {
+    const currentPage = displayContent.page;
+    if (isProject(currentPage)) {
+      const fetchMembers = async () => {
+        setIsLoadingMembers(true);
+        try {
+          const response = await fetch(`/api/projects/${currentPage.id}/share`);
+          const data = await response.json();
+          
+          if (data.success) {
+            const members: ProjectMember[] = [];
+            
+            // Add owner first
+            if (data.owner) {
+              members.push({
+                id: data.owner.id,
+                email: data.owner.email,
+                firstName: data.owner.firstName,
+                lastName: data.owner.lastName,
+                imageUrl: data.owner.imageUrl,
+                role: 'owner',
+              });
+            }
+            
+            // Add all shared members
+            if (data.shares && Array.isArray(data.shares)) {
+              data.shares.forEach((share: any) => {
+                if (share.sharedWithUser) {
+                  members.push({
+                    id: share.sharedWithUser.id,
+                    email: share.sharedWithUser.email,
+                    firstName: share.sharedWithUser.firstName,
+                    lastName: share.sharedWithUser.lastName,
+                    imageUrl: share.sharedWithUser.imageUrl,
+                    role: share.role as 'editor' | 'viewer',
+                  });
+                } else if (share.email) {
+                  // Pending invite (no user yet)
+                  members.push({
+                    id: share.id,
+                    email: share.email,
+                    firstName: null,
+                    lastName: null,
+                    imageUrl: null,
+                    role: share.role as 'editor' | 'viewer',
+                  });
+                }
+              });
+            }
+            
+            setProjectMembers(members);
+          }
+        } catch (error) {
+          console.error('Error fetching project members:', error);
+        } finally {
+          setIsLoadingMembers(false);
+        }
+      };
+      
+      fetchMembers();
+    } else {
+      // Clear members when not viewing a project
+      setProjectMembers([]);
+    }
+  }, [displayContent.page?.id, displayContent.path]);
 
   // If current page is a project, show project overview with document list
   if (isProject(pageToRender)) {
@@ -293,16 +383,35 @@ const DocsPageContentComponent = ({
             <div className="space-y-6">
               <div>
                 <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Members</p>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <img
-                      src="/icons/googleIcon.png"
-                      alt="Gmail"
-                      className="w-4 h-4 flex-shrink-0"
-                    />
-                    <p className="text-xs text-gray-700 truncate">zakirmatloob149@gmail.com</p>
+                {isLoadingMembers ? (
+                  <div className="text-xs text-gray-500">Loading...</div>
+                ) : projectMembers.length > 0 ? (
+                  <div className="space-y-2">
+                    {projectMembers.map((member) => (
+                      <div key={member.id} className="flex items-center gap-2">
+                        {member.imageUrl ? (
+                          <img
+                            src={member.imageUrl}
+                            alt={member.email}
+                            className="w-6 h-6 rounded-full flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                            <span className="text-[10px] text-gray-600 font-medium">
+                              {member.email.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-gray-700 truncate">{member.email}</p>
+                          <p className="text-[10px] text-gray-500 capitalize">{member.role}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                ) : (
+                  <div className="text-xs text-gray-500">No members</div>
+                )}
               </div>
               <div>
                 <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Documents</p>
@@ -321,8 +430,7 @@ const DocsPageContentComponent = ({
           <div className="mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
             <button
               onClick={() => {
-                // TODO: Implement Manage Project logic
-                console.log('🖱️ [CLICK] Manage Project clicked');
+                handleShareProject(pageToRender.id, pageToRender.title);
               }}
               className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
             >
@@ -336,20 +444,22 @@ const DocsPageContentComponent = ({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                  d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
                 />
               </svg>
-              Manage Project
+              Manage Access
             </button>
           </div>
         </aside>
         <CreateDocModal />
+        <ShareModal
+          isOpen={shareModalOpen}
+          onClose={() => setShareModalOpen(false)}
+          type={shareType}
+          itemId={shareItemId}
+          itemName={shareItemName}
+          canShare={canEdit}
+        />
       </div>
     );
   }
@@ -661,29 +771,33 @@ const DocsPageContentComponent = ({
                     {page.title === 'Untitled page' || !page.title ? 'Start writing your page' : 'Add content to your page'}
                   </h3>
                   <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                    {page.title === 'Untitled page' || !page.title 
-                      ? 'Add a title and description to get started. You can start writing your documentation content right away.'
-                      : 'Click "Edit this page" to add a description and content to your page.'}
+                    {canEdit 
+                      ? (page.title === 'Untitled page' || !page.title 
+                          ? 'Add a title and description to get started. You can start writing your documentation content right away.'
+                          : 'Click "Edit this page" to add a description and content to your page.')
+                      : 'This page is currently empty.'}
                   </p>
-                  <button
-                    onClick={() => setIsEditing(true)}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors font-medium shadow-sm hover:shadow-md"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  {canEdit && (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors font-medium shadow-sm hover:shadow-md"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                      />
-                    </svg>
-                    {page.title === 'Untitled page' || !page.title ? 'Start writing documentation' : 'Edit this page'}
-                  </button>
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
+                      </svg>
+                      {page.title === 'Untitled page' || !page.title ? 'Start writing documentation' : 'Edit this page'}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
@@ -766,14 +880,16 @@ const DocsPageContentComponent = ({
             href: p.href,
           }))}
           currentPageId={page.id}
+          canEdit={canEdit}
         />
         <AddPageModal />
         <ShareModal
           isOpen={shareModalOpen}
           onClose={() => setShareModalOpen(false)}
-          type="document"
+          type={shareType}
           itemId={shareItemId}
           itemName={shareItemName}
+          canShare={canEdit}
         />
       </div>
     );

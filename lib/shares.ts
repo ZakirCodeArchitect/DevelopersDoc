@@ -147,9 +147,11 @@ export async function getProjectShares(projectId: string) {
 
 /**
  * Remove a share (unshare)
+ * @param shareId - The ID of the share to remove
+ * @param userId - The ID of the user requesting the removal
+ * @param isOwner - Whether the user is the owner (optional, will be checked if not provided)
  */
-export async function removeShare(shareId: string, userId: string) {
-  // Verify the user has permission to remove this share (must be the owner)
+export async function removeShare(shareId: string, userId: string, isOwner?: boolean) {
   const share = await prisma.share.findUnique({
     where: { id: shareId },
     include: {
@@ -162,9 +164,18 @@ export async function removeShare(shareId: string, userId: string) {
     throw new Error('Share not found');
   }
 
-  const ownerId = share.projectId ? share.project?.userId : share.document?.userId;
-  if (ownerId !== userId) {
-    throw new Error('Unauthorized to remove this share');
+  // If isOwner not provided, check if user is owner
+  if (isOwner === undefined) {
+    const ownerId = share.projectId ? share.project?.userId : share.document?.userId;
+    isOwner = ownerId === userId;
+  }
+
+  // Owners can remove any share
+  // Non-owners can only remove their own share
+  if (!isOwner) {
+    if (share.sharedWith !== userId) {
+      throw new Error('Unauthorized to remove this share');
+    }
   }
 
   return prisma.share.delete({

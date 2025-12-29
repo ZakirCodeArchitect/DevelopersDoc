@@ -194,9 +194,26 @@ export async function getAllDocsData(userId: string): Promise<DocsData> {
     }
   }
 
+  // Build ownership maps for efficient lookup
+  const ownedProjectIds = new Set(ownedProjects.map(p => p.id));
+  const ownedDocIds = new Set(ownedYourDocs.map(d => d.id));
+  
+  // For project documents, check if the project is owned
+  const ownedProjectDocumentIds = new Set<string>();
+  for (const project of ownedProjects) {
+    for (const doc of project.documents) {
+      ownedProjectDocumentIds.add(doc.id);
+    }
+  }
+
   return {
     projects: allProjects,
     yourDocs: allYourDocs,
+    ownership: {
+      ownedProjectIds,
+      ownedDocIds,
+      ownedProjectDocumentIds,
+    },
   };
 }
 
@@ -324,23 +341,23 @@ export async function getAllDocsNavData(userId: string): Promise<DocsData> {
   }));
 
   // Convert shared documents to YourDocData format (nav-only)
-  const sharedYourDocsData: YourDocData[] = sharedYourDocs
-    .filter(doc => !doc.projectId) // Only include documents without projects
-    .map(doc => ({
-      id: doc.id,
-      label: doc.label,
-      title: doc.title,
-      description: doc.description || undefined,
-      lastUpdated: doc.lastUpdated,
-      content: {
-        pages: doc.pages.map(page => ({
-          id: page.id,
-          title: page.title,
-          pageNumber: page.pageNumber,
-          sections: [], // nav-only
-        })),
-      },
-    }));
+  // Include ALL directly shared documents, even if they belong to a project
+  // (Users with direct document access should see it, even if they don't have project access)
+  const sharedYourDocsData: YourDocData[] = sharedYourDocs.map(doc => ({
+    id: doc.id,
+    label: doc.label,
+    title: doc.title,
+    description: doc.description || undefined,
+    lastUpdated: doc.lastUpdated,
+    content: {
+      pages: doc.pages.map(page => ({
+        id: page.id,
+        title: page.title,
+        pageNumber: page.pageNumber,
+        sections: [], // nav-only
+      })),
+    },
+  }));
 
   // Merge owned and shared items (avoid duplicates)
   const allProjects = [...ownedProjects];
@@ -353,46 +370,158 @@ export async function getAllDocsNavData(userId: string): Promise<DocsData> {
     }
   }
 
-  // Add shared docs that aren't already owned
+  // Collect all document IDs that are already visible through shared projects
+  const documentIdsInSharedProjects = new Set<string>();
+  for (const sharedProject of sharedProjectsData) {
+    for (const doc of sharedProject.documents) {
+      documentIdsInSharedProjects.add(doc.id);
+    }
+  }
+
+  // Add shared docs that aren't already owned and aren't already visible through shared projects
+  // (If user has project access, they'll see the document through the project, not as standalone)
   for (const sharedDoc of sharedYourDocsData) {
-    if (!allYourDocs.find(d => d.id === sharedDoc.id)) {
+    const isAlreadyInProjects = documentIdsInSharedProjects.has(sharedDoc.id);
+    const isAlreadyOwned = allYourDocs.find(d => d.id === sharedDoc.id);
+    
+    if (!isAlreadyOwned && !isAlreadyInProjects) {
       allYourDocs.push(sharedDoc);
     }
   }
 
-  return { projects: allProjects, yourDocs: allYourDocs };
+  // Build ownership maps for efficient lookup
+  const ownedProjectIds = new Set(ownedProjects.map(p => p.id));
+  const ownedDocIds = new Set(ownedYourDocs.map(d => d.id));
+  
+  // For project documents, check if the project is owned
+  const ownedProjectDocumentIds = new Set<string>();
+  for (const project of ownedProjects) {
+    for (const doc of project.documents) {
+      ownedProjectDocumentIds.add(doc.id);
+    }
+  }
+
+  return { 
+    projects: allProjects, 
+    yourDocs: allYourDocs,
+    ownership: {
+      ownedProjectIds,
+      ownedDocIds,
+      ownedProjectDocumentIds,
+    },
+  };
+}
+
+/**
+ * Helper function to check if a user has access to a document
+ * Returns: { hasAccess: boolean, isOwner: boolean, isEditor: boolean, isViewer: boolean }
+ */
+async function checkDocumentAccess(documentId: string, userId: string) {
+  // Get document with project info
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+    select: {
+      id: true,
+      userId: true,
+      projectId: true,
+    },
+  });
+
+  if (!document) {
+    return { hasAccess: false, isOwner: false, isEditor: false, isViewer: false };
+  }
+
+  // Check if user is the document owner
+  const isDocumentOwner = document.userId === userId;
+  if (isDocumentOwner) {
+    return { hasAccess: true, isOwner: true, isEditor: true, isViewer: false };
+  }
+
+  // Check if user has been directly shared with this document
+  const directShare = await prisma.share.findFirst({
+    where: {
+      documentId: document.id,
+      sharedWith: userId,
+      status: 'accepted',
+    },
+  });
+
+  if (directShare) {
+    return {
+      hasAccess: true,
+      isOwner: false,
+      isEditor: directShare.role === 'editor',
+      isViewer: directShare.role === 'viewer',
+    };
+  }
+
+  // If document belongs to a project, check project access
+  if (document.projectId) {
+    const project = await prisma.project.findUnique({
+      where: { id: document.projectId },
+      select: { userId: true },
+    });
+
+    if (!project) {
+      return { hasAccess: false, isOwner: false, isEditor: false, isViewer: false };
+    }
+
+    // Check if user is the project owner
+    const isProjectOwner = project.userId === userId;
+    if (isProjectOwner) {
+      return { hasAccess: true, isOwner: false, isEditor: true, isViewer: false };
+    }
+
+    // Check if user has been shared with the project
+    const projectShare = await prisma.share.findFirst({
+      where: {
+        projectId: document.projectId,
+        sharedWith: userId,
+        status: 'accepted',
+      },
+    });
+
+    if (projectShare) {
+      return {
+        hasAccess: true,
+        isOwner: false,
+        isEditor: projectShare.role === 'editor',
+        isViewer: projectShare.role === 'viewer',
+      };
+    }
+  }
+
+  return { hasAccess: false, isOwner: false, isEditor: false, isViewer: false };
 }
 
 /**
  * CONTENT: Get a single page with sections (for the currently viewed page).
- * Also verifies that the page belongs to a document owned by the user.
+ * Also verifies that the page belongs to a document the user has access to.
  */
 export const getPageWithSections = cache(async (pageId: string, userId: string): Promise<DocumentPage | null> => {
   const page = await prisma.page.findUnique({
     where: { id: pageId },
-    select: {
-      id: true,
-      title: true,
-      pageNumber: true,
+    include: {
       document: {
         select: {
+          id: true,
           userId: true,
         },
       },
       sections: {
         orderBy: { createdAt: 'asc' },
-        select: {
-          id: true,
-          title: true,
-          type: true,
-          content: true,
-          componentType: true,
-        },
       },
     },
   });
 
-  if (!page || page.document.userId !== userId) return null;
+  if (!page) return null;
+
+  // Check if user has access to the document (directly or through project)
+  const { hasAccess } = await checkDocumentAccess(page.document.id, userId);
+  
+  if (!hasAccess) {
+    return null;
+  }
 
   return {
     id: page.id,
@@ -707,13 +836,20 @@ export async function addPageToDocument(
   content?: string[],
   projectId?: string
 ): Promise<DocumentPage> {
-  // docId is a UUID - verify ownership first
+  // Check if user has access to the document (directly or through project) and is editor
+  const { hasAccess, isEditor } = await checkDocumentAccess(docId, userId);
+
+  if (!hasAccess || !isEditor) {
+    throw new Error('Document not found or access denied. Only editors can add pages.');
+  }
+
+  // Verify document exists
   const existingDocument = await prisma.document.findFirst({
-    where: { id: docId, userId },
+    where: { id: docId },
   });
 
   if (!existingDocument) {
-    throw new Error('Document not found or access denied');
+    throw new Error('Document not found');
   }
 
   const sectionContent = content || [''];
@@ -783,13 +919,20 @@ export async function updatePage(
   userId: string,
   projectId?: string
 ): Promise<DocumentPage> {
-  // docId and pageId are UUIDs - verify document ownership first
+  // Check if user has access to the document (directly or through project) and is editor
+  const { hasAccess, isEditor } = await checkDocumentAccess(docId, userId);
+
+  if (!hasAccess || !isEditor) {
+    throw new Error('Document not found or access denied. Only editors can update pages.');
+  }
+
+  // Verify document exists
   const existingDocument = await prisma.document.findFirst({
-    where: { id: docId, userId },
+    where: { id: docId },
   });
 
   if (!existingDocument) {
-    throw new Error('Document not found or access denied');
+    throw new Error('Document not found');
   }
 
   // Check if page exists and belongs to the document

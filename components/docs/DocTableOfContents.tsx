@@ -24,6 +24,7 @@ interface DocTableOfContentsProps {
   projectName?: string;
   pages?: PageLink[];
   currentPageId?: string;
+  canEdit?: boolean; // If false, hide edit and add page buttons
 }
 
 export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
@@ -36,6 +37,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   projectName,
   pages,
   currentPageId,
+  canEdit = true, // Default to true for backward compatibility
 }) => {
   // Always show the sidebar if there are items, pages, or an add page handler
   if (items.length === 0 && !pages?.length && !onAddPage) {
@@ -125,7 +127,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
         {/* Sticky bottom section - actions only */}
         <div className="mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
           <div className="space-y-3">
-            {onEditPage && (
+            {onEditPage && canEdit && (
               <button
                 onClick={onEditPage}
                 className="w-full text-sm text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 border border-gray-200 hover:border-gray-300"
@@ -147,7 +149,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
                 Edit this page
               </button>
             )}
-            {onAddPage && (
+            {onAddPage && canEdit && (
               <button
                 onClick={onAddPage}
                 className="w-full text-sm text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 border border-gray-200 hover:border-gray-300"

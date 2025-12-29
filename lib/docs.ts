@@ -59,6 +59,11 @@ export interface YourDocData {
 export interface DocsData {
   projects: ProjectData[];
   yourDocs: YourDocData[];
+  ownership?: {
+    ownedProjectIds: Set<string>;
+    ownedDocIds: Set<string>;
+    ownedProjectDocumentIds: Set<string>;
+  };
 }
 
 // Processed types (with generated hrefs and navigation)
@@ -439,7 +444,12 @@ export function processYourDocs(yourDocs: YourDocData[]): ProcessedYourDoc[] {
  */
 export function buildSidebarItems(
   projects: ProcessedProject[],
-  yourDocs: ProcessedYourDoc[]
+  yourDocs: ProcessedYourDoc[],
+  ownership?: {
+    ownedProjectIds: Set<string>;
+    ownedDocIds: Set<string>;
+    ownedProjectDocumentIds: Set<string>;
+  }
 ): NavItem[] {
   return [
     {
@@ -449,22 +459,37 @@ export function buildSidebarItems(
     {
       label: 'Projects',
       href: '#',
-      children: projects.map((project) => ({
-        label: project.label,
-        href: project.href,
-        children: project.documents.map((doc) => ({
-          label: doc.label,
-          href: doc.href,
-        })),
-      })),
+      children: projects.map((project) => {
+        const isOwner = ownership?.ownedProjectIds.has(project.id) ?? false;
+        
+        return {
+          label: project.label,
+          href: project.href,
+          isOwner,
+          children: project.documents.map((doc) => {
+            const isDocOwner = ownership?.ownedProjectDocumentIds.has(doc.id) ?? false;
+            
+            return {
+              label: doc.label,
+              href: doc.href,
+              isOwner: isDocOwner,
+            };
+          }),
+        };
+      }),
     },
     {
       label: 'Your Docs',
       href: '#',
-      children: yourDocs.map((doc) => ({
-        label: doc.label,
-        href: doc.href,
-      })),
+      children: yourDocs.map((doc) => {
+        const isOwner = ownership?.ownedDocIds.has(doc.id) ?? false;
+        
+        return {
+          label: doc.label,
+          href: doc.href,
+          isOwner,
+        };
+      }),
     },
   ];
 }

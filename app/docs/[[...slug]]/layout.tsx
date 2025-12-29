@@ -23,7 +23,7 @@ export default async function DocsLayout({
   const data = await getAllDocsNavData(user.id);
   const processedProjects = processProjects(data.projects);
   const processedYourDocs = processYourDocs(data.yourDocs);
-  const sidebarItems = buildSidebarItems(processedProjects, processedYourDocs);
+  const sidebarItems = buildSidebarItems(processedProjects, processedYourDocs, data.ownership);
 
   return (
     <DocsLayoutClient

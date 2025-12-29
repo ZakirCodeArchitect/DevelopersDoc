@@ -69,6 +69,7 @@ export interface NavItem {
   label: string;
   href: string;
   children?: NavItem[];
+  isOwner?: boolean; // Whether the current user owns this item (project or document)
 }
 
 interface DocSidebarProps {
@@ -453,7 +454,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
                   />
                 </svg>
               </Link>
-              {onRenameProject && onDeleteProject && (
+              {onRenameProject && onDeleteProject && item.isOwner && (
                 <div 
                   data-context-menu
                   className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 [&[data-menu-open='true']]:opacity-100 flex-shrink-0"
@@ -518,7 +519,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
                   </svg>
                 </button>
               )}
-              {onRenameDoc && onDeleteDoc && !isCollapsibleHeader && item.label !== 'Dashboard' && (
+              {onRenameDoc && onDeleteDoc && !isCollapsibleHeader && item.label !== 'Dashboard' && item.isOwner && (
                 <div 
                   data-context-menu
                   className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 [&[data-menu-open='true']]:opacity-100 flex-shrink-0"
