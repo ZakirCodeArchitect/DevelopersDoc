@@ -65,11 +65,11 @@ export async function GET(
         email: document.user.email,
         imageUrl: document.user.imageUrl,
       },
-      pages: document.pages.map((page) => ({
+      pages: document.pages.map((page: any) => ({
         id: page.id,
         title: page.title,
         pageNumber: page.pageNumber,
-        sections: page.sections.map((section) => ({
+        sections: page.sections.map((section: any) => ({
           id: section.id,
           title: section.title,
           type: section.type,
