@@ -5,15 +5,31 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Use webpack instead of Turbopack for more lenient module resolution
-  webpack: (config) => {
+  // Force webpack usage and configure module resolution
+  webpack: (config, { isServer }) => {
+    // Configure path aliases
     config.resolve.alias = {
       ...config.resolve.alias,
       "@": path.resolve(__dirname),
     };
-    config.resolve.fallback = { fs: false, net: false, tls: false };
-    // Enable extension resolution for better module resolution
-    config.resolve.extensions = ['.tsx', '.ts', '.jsx', '.js', '.json'];
+    
+    // Configure fallbacks for Node.js modules
+    config.resolve.fallback = { 
+      fs: false, 
+      net: false, 
+      tls: false,
+      ...config.resolve.fallback,
+    };
+    
+    // Ensure proper extension resolution
+    if (!config.resolve.extensions) {
+      config.resolve.extensions = [];
+    }
+    config.resolve.extensions.push('.tsx', '.ts', '.jsx', '.js', '.json');
+    
+    // Make module resolution more lenient
+    config.resolve.symlinks = false;
+    
     return config;
   },
 };
