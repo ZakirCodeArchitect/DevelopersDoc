@@ -47,6 +47,8 @@ model Document {
   shares      Share[]
   publishedDocument PublishedDocument? // Reference to published version
 
+  // Indexes for performance optimization
+  @@index([userId, projectId])
   @@map("documents")
 }
 
@@ -62,6 +64,8 @@ model Page {
   
   sections  Section[]
 
+  // Indexes for performance optimization
+  @@index([documentId, pageNumber])
   @@map("pages")
 }
 
@@ -115,6 +119,11 @@ model Share {
   
   sharedWithUser User?  @relation("SharedWithUser", fields: [sharedWith], references: [id], onDelete: SetNull)
 
+  // Indexes for performance optimization
+  @@index([sharedWith, status, documentId])
+  @@index([sharedWith, status, projectId])
+  @@index([documentId, sharedWith, status, role])
+  @@index([projectId, sharedWith, status, role])
   @@map("shares")
 }
 

@@ -216,9 +216,11 @@ export async function acceptPendingShares(userEmail: string, userId: string) {
 
 /**
  * Get all documents shared with a user
+ * Optimized: Uses a single query with join instead of two separate queries
  */
 export async function getSharedDocuments(userId: string) {
-  // First get all accepted shares for this user
+  // Use a single query with join to get documents and pages in one go
+  // OPTIMIZE: Don't fetch user data for nav-only queries - it's not needed
   const shares = await prisma.share.findMany({
     where: {
       sharedWith: userId,
@@ -226,72 +228,13 @@ export async function getSharedDocuments(userId: string) {
       documentId: { not: null },
     },
     select: {
-      documentId: true,
-    },
-  });
-
-  const documentIds = shares.map(s => s.documentId).filter((id): id is string => id !== null);
-
-  if (documentIds.length === 0) {
-    return [];
-  }
-
-  return prisma.document.findMany({
-    where: {
-      id: { in: documentIds },
-    },
-    include: {
-      pages: {
-        orderBy: { pageNumber: 'asc' },
+      document: {
         select: {
           id: true,
+          label: true,
           title: true,
-          pageNumber: true,
-        },
-      },
-      user: {
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          imageUrl: true,
-        },
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-}
-
-/**
- * Get all projects shared with a user
- */
-export async function getSharedProjects(userId: string) {
-  // First get all accepted shares for this user
-  const shares = await prisma.share.findMany({
-    where: {
-      sharedWith: userId,
-      status: 'accepted',
-      projectId: { not: null },
-    },
-    select: {
-      projectId: true,
-    },
-  });
-
-  const projectIds = shares.map(s => s.projectId).filter((id): id is string => id !== null);
-
-  if (projectIds.length === 0) {
-    return [];
-  }
-
-  return prisma.project.findMany({
-    where: {
-      id: { in: projectIds },
-    },
-    include: {
-      documents: {
-        include: {
+          description: true,
+          lastUpdated: true,
           pages: {
             orderBy: { pageNumber: 'asc' },
             select: {
@@ -301,19 +244,73 @@ export async function getSharedProjects(userId: string) {
             },
           },
         },
-        orderBy: { createdAt: 'asc' },
       },
-      user: {
+    },
+  });
+
+  // Extract unique documents (in case of duplicate shares)
+  const documentMap = new Map<string, NonNullable<typeof shares[0]['document']>>();
+  for (const share of shares) {
+    if (share.document && !documentMap.has(share.document.id)) {
+      documentMap.set(share.document.id, share.document);
+    }
+  }
+
+  return Array.from(documentMap.values());
+}
+
+/**
+ * Get all projects shared with a user
+ * Optimized: Uses a single query with join instead of two separate queries
+ */
+export async function getSharedProjects(userId: string) {
+  // Use a single query with join to get projects and documents in one go
+  // OPTIMIZE: Don't fetch user data for nav-only queries - it's not needed
+  const shares = await prisma.share.findMany({
+    where: {
+      sharedWith: userId,
+      status: 'accepted',
+      projectId: { not: null },
+    },
+    select: {
+      project: {
         select: {
           id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          imageUrl: true,
+          label: true,
+          title: true,
+          description: true,
+          lastUpdated: true,
+          documents: {
+            select: {
+              id: true,
+              label: true,
+              title: true,
+              description: true,
+              lastUpdated: true,
+              pages: {
+                orderBy: { pageNumber: 'asc' },
+                select: {
+                  id: true,
+                  title: true,
+                  pageNumber: true,
+                },
+              },
+            },
+            orderBy: { createdAt: 'asc' },
+          },
         },
       },
     },
-    orderBy: { createdAt: 'desc' },
   });
+
+  // Extract unique projects (in case of duplicate shares)
+  const projectMap = new Map<string, NonNullable<typeof shares[0]['project']>>();
+  for (const share of shares) {
+    if (share.project && !projectMap.has(share.project.id)) {
+      projectMap.set(share.project.id, share.project);
+    }
+  }
+
+  return Array.from(projectMap.values());
 }
 

@@ -517,56 +517,74 @@ async function checkDocumentAccess(documentId: string, userId: string) {
     return { hasAccess: true, isOwner: true, isEditor: true, isViewer: false };
   }
 
-  // Check if user has been directly shared with this document
-  const directShare = await prisma.share.findFirst({
-    where: {
-      documentId: document.id,
-      sharedWith: userId,
-      status: 'accepted',
-    },
-  });
-
-  if (directShare) {
-    return {
-      hasAccess: true,
-      isOwner: false,
-      isEditor: directShare.role === 'editor',
-      isViewer: directShare.role === 'viewer',
-    };
-  }
-
-  // If document belongs to a project, check project access
+  // Optimize: Check document share and project access in parallel if projectId exists
+  // Use select to fetch only the role field we need
   if (document.projectId) {
-    const project = await prisma.project.findUnique({
-      where: { id: document.projectId },
-      select: { userId: true },
-    });
+    // Check both document share and project access in parallel
+    const [directShare, project, projectShare] = await Promise.all([
+      prisma.share.findFirst({
+        where: {
+          documentId: document.id,
+          sharedWith: userId,
+          status: 'accepted',
+        },
+        select: { role: true }, // Only fetch role field
+      }),
+      prisma.project.findUnique({
+        where: { id: document.projectId },
+        select: { userId: true },
+      }),
+      prisma.share.findFirst({
+        where: {
+          projectId: document.projectId,
+          sharedWith: userId,
+          status: 'accepted',
+        },
+        select: { role: true }, // Only fetch role field
+      }),
+    ]);
 
-    if (!project) {
-      return { hasAccess: false, isOwner: false, isEditor: false, isViewer: false };
+    // Check direct share first
+    if (directShare) {
+      return {
+        hasAccess: true,
+        isOwner: false,
+        isEditor: directShare.role === 'editor',
+        isViewer: directShare.role === 'viewer',
+      };
     }
 
-    // Check if user is the project owner
-    const isProjectOwner = project.userId === userId;
-    if (isProjectOwner) {
+    // Check project owner
+    if (project && project.userId === userId) {
       return { hasAccess: true, isOwner: false, isEditor: true, isViewer: false };
     }
 
-    // Check if user has been shared with the project
-    const projectShare = await prisma.share.findFirst({
-      where: {
-        projectId: document.projectId,
-        sharedWith: userId,
-        status: 'accepted',
-      },
-    });
-
+    // Check project share
     if (projectShare) {
       return {
         hasAccess: true,
         isOwner: false,
         isEditor: projectShare.role === 'editor',
         isViewer: projectShare.role === 'viewer',
+      };
+    }
+  } else {
+    // No project, only check direct share
+    const directShare = await prisma.share.findFirst({
+      where: {
+        documentId: document.id,
+        sharedWith: userId,
+        status: 'accepted',
+      },
+      select: { role: true }, // Only fetch role field
+    });
+
+    if (directShare) {
+      return {
+        hasAccess: true,
+        isOwner: false,
+        isEditor: directShare.role === 'editor',
+        isViewer: directShare.role === 'viewer',
       };
     }
   }
@@ -579,9 +597,13 @@ async function checkDocumentAccess(documentId: string, userId: string) {
  * Also verifies that the page belongs to a document the user has access to.
  */
 export const getPageWithSections = cache(async (pageId: string, userId: string): Promise<DocumentPage | null> => {
+  // Optimize: Use select to fetch only needed fields
   const page = await prisma.page.findUnique({
     where: { id: pageId },
-    include: {
+    select: {
+      id: true,
+      title: true,
+      pageNumber: true,
       document: {
         select: {
           id: true,
@@ -590,6 +612,13 @@ export const getPageWithSections = cache(async (pageId: string, userId: string):
       },
       sections: {
         orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          title: true,
+          type: true,
+          content: true,
+          componentType: true,
+        },
       },
     },
   });

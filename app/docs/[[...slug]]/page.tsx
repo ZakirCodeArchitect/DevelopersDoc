@@ -40,13 +40,45 @@ export default async function DocsPage({ params }: DocsPageProps) {
   const isPublishedRoute = currentPath.startsWith('/docs/published/');
 
   // NAV-ONLY dataset (no sections) for fast navigation and small payloads
-  // For published routes, we can skip fetching shared docs to avoid Prisma errors
+  // CRITICAL OPTIMIZATION: Fetch all navigation data in parallel
+  // Use React cache to deduplicate requests within the same render
+  const getAllDocsNavDataCached = cache(getAllDocsNavData);
+  const getAllPublishedDocsNavCached = cache(getAllPublishedDocsNav);
+  
+  // Fetch both in parallel instead of sequentially
   let data;
+  let publishedDocsData: { documents: YourDocData[]; publishSlugs: Map<string, string> } = {
+    documents: [],
+    publishSlugs: new Map(),
+  };
+  
   try {
-    data = await getAllDocsNavData(user.id);
+    [data, publishedDocsData] = await Promise.all([
+      getAllDocsNavDataCached(user.id).catch((error) => {
+        // If getAllDocsNavData fails (e.g., Share model not available), use minimal data
+        console.warn('Error fetching all docs nav data, using minimal data:', error);
+        return Promise.all([
+          (import('@/lib/db')).then(m => m.getAllProjectsNav(user.id)),
+          (import('@/lib/db')).then(m => m.getAllYourDocsNav(user.id)),
+        ]).then(([ownedProjects, ownedYourDocs]) => ({
+          projects: ownedProjects,
+          yourDocs: ownedYourDocs,
+          ownership: {
+            ownedProjectIds: new Set(ownedProjects.map(p => p.id)),
+            ownedDocIds: new Set(ownedYourDocs.map(d => d.id)),
+            ownedProjectDocumentIds: new Set(ownedProjects.flatMap(p => p.documents.map(d => d.id))),
+          },
+        }));
+      }),
+      getAllPublishedDocsNavCached().catch((error) => {
+        // If published docs can't be fetched (e.g., schema not migrated), just continue without them
+        console.error('Error fetching published docs:', error);
+        return { documents: [], publishSlugs: new Map() };
+      }),
+    ]);
   } catch (error) {
-    // If getAllDocsNavData fails (e.g., Share model not available), use minimal data
-    console.warn('Error fetching all docs nav data, using minimal data:', error);
+    console.error('Critical error fetching navigation data:', error);
+    // Fallback to minimal data
     const [ownedProjects, ownedYourDocs] = await Promise.all([
       (await import('@/lib/db')).getAllProjectsNav(user.id),
       (await import('@/lib/db')).getAllYourDocsNav(user.id),
@@ -61,28 +93,13 @@ export default async function DocsPage({ params }: DocsPageProps) {
       },
     };
   }
+  
   const processedProjects = processProjects(data.projects);
   const processedYourDocs = processYourDocs(data.yourDocs);
-
-  // Fetch published documents
-  let processedPublishedDocs: ProcessedYourDoc[] = [];
-  let publishedDocsData: { documents: YourDocData[]; publishSlugs: Map<string, string> } = {
-    documents: [],
-    publishSlugs: new Map(),
-  };
-  
-  try {
-    publishedDocsData = await getAllPublishedDocsNav();
-    processedPublishedDocs = processPublishedDocs(
-      publishedDocsData.documents,
-      publishedDocsData.publishSlugs
-    );
-  } catch (error) {
-    // If published docs can't be fetched (e.g., schema not migrated), just continue without them
-    console.error('Error fetching published docs:', error);
-    processedPublishedDocs = [];
-    publishedDocsData = { documents: [], publishSlugs: new Map() };
-  }
+  const processedPublishedDocs = processPublishedDocs(
+    publishedDocsData.documents,
+    publishedDocsData.publishSlugs
+  );
 
   // Find the current page (including published docs)
   let currentPage = findDocumentByPath(currentPath, processedProjects, processedYourDocs, processedPublishedDocs);
@@ -125,52 +142,83 @@ export default async function DocsPage({ params }: DocsPageProps) {
     }
     
     // Fetch the page directly by ID with sections and document
+    // Optimize: Fetch page data and check published status in parallel
     let pageData;
     try {
-      pageData = await prisma.page.findUnique({
+      // First, get the page with minimal document info to check published status
+      const pageWithDoc = await prisma.page.findUnique({
         where: { id: pageId },
-        include: {
-          sections: {
-            orderBy: { createdAt: 'asc' },
-          },
+        select: {
+          id: true,
+          title: true,
+          pageNumber: true,
+          documentId: true,
           document: {
-            include: {
-              pages: {
-                orderBy: { pageNumber: 'asc' },
-                select: {
-                  id: true,
-                  title: true,
-                  pageNumber: true,
-                },
-              },
+            select: {
+              id: true,
             },
           },
         },
       });
+      
+      if (!pageWithDoc || !pageWithDoc.document) {
+        redirect('/docs');
+      }
+      
+      // Check if document is published in parallel with fetching full page data
+      const [pubDoc, fullPageData] = await Promise.all([
+        // Check published status
+        (async () => {
+          try {
+            return await (prisma as any).publishedDocument?.findUnique({
+              where: { documentId: pageWithDoc.documentId },
+              select: { id: true }, // Only need to know if it exists
+            });
+          } catch {
+            return null;
+          }
+        })(),
+        // Fetch full page data with sections and pages for navigation
+        prisma.page.findUnique({
+          where: { id: pageId },
+          select: {
+            id: true,
+            title: true,
+            pageNumber: true,
+            sections: {
+              orderBy: { createdAt: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                content: true,
+                componentType: true,
+              },
+            },
+            document: {
+              select: {
+                id: true,
+                pages: {
+                  orderBy: { pageNumber: 'asc' },
+                  select: {
+                    id: true,
+                    title: true,
+                    pageNumber: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
+      ]);
+      
+      if (!pubDoc || !fullPageData || !fullPageData.document) {
+        redirect('/docs');
+      }
+      
+      pageData = fullPageData;
     } catch (error) {
       console.error('Error fetching page by ID:', error);
-      redirect('/docs');
-    }
-    
-    if (!pageData || !pageData.document) {
-      redirect('/docs');
-    }
-    
-    // Check if the document is published - try PublishedDocument table
-    let isPublished = false;
-    try {
-      // Try to find in PublishedDocument table
-      const pubDoc = await (prisma as any).publishedDocument?.findUnique({
-        where: { documentId: pageData.documentId },
-      });
-      isPublished = !!pubDoc;
-    } catch (error) {
-      // If PublishedDocument table doesn't exist or query fails, redirect
-      console.error('Error checking published status:', error);
-      redirect('/docs');
-    }
-    
-    if (!isPublished) {
       redirect('/docs');
     }
     
@@ -276,39 +324,58 @@ export default async function DocsPage({ params }: DocsPageProps) {
     let fullPage: any;
     if (shouldFetchSections) {
       if (isPublishedRoute) {
-        fullPage = await (async () => {
+        // Cache the published page fetch
+        // Optimize: Use select to fetch only needed fields and combine queries
+        const getPublishedPageCached = cache(async (pageId: string) => {
           try {
-            const page = await prisma.page.findUnique({
-              where: { id: currentPage.id },
-              include: {
-                sections: {
-                  orderBy: { createdAt: 'asc' },
-                },
-                document: {
-                  select: {
-                    id: true,
-                  },
-                },
+            // First get documentId to check published status
+            const pageWithDoc = await prisma.page.findUnique({
+              where: { id: pageId },
+              select: {
+                id: true,
+                documentId: true,
               },
             });
             
-            if (!page || !page.document) {
-              console.error('Page or document not found:', { pageId: currentPage.id, hasPage: !!page });
+            if (!pageWithDoc) {
               return null;
             }
             
-            // Check if document is published by querying PublishedDocument table
-            try {
-              const pubDoc = await (prisma as any).publishedDocument?.findUnique({
-                where: { documentId: page.document.id },
-              });
-              
-              if (!pubDoc) {
-                console.error('Document is not published:', { documentId: page.document.id });
-                return null;
-              }
-            } catch (pubError) {
-              console.error('Error checking published status:', pubError);
+            // Fetch page data and check published status in parallel
+            const [pubDoc, page] = await Promise.all([
+              // Check published status
+              (async () => {
+                try {
+                  return await (prisma as any).publishedDocument?.findUnique({
+                    where: { documentId: pageWithDoc.documentId },
+                    select: { id: true }, // Only need to know if it exists
+                  });
+                } catch {
+                  return null;
+                }
+              })(),
+              // Fetch full page with sections (only fields we need)
+              prisma.page.findUnique({
+                where: { id: pageId },
+                select: {
+                  id: true,
+                  title: true,
+                  pageNumber: true,
+                  sections: {
+                    orderBy: { createdAt: 'asc' },
+                    select: {
+                      id: true,
+                      title: true,
+                      type: true,
+                      content: true,
+                      componentType: true,
+                    },
+                  },
+                },
+              }),
+            ]);
+            
+            if (!pubDoc || !page) {
               return null;
             }
             
@@ -328,7 +395,9 @@ export default async function DocsPage({ params }: DocsPageProps) {
             console.error('Error fetching published page:', error);
             return null;
           }
-        })();
+        });
+        
+        fullPage = await getPublishedPageCached(currentPage.id);
       } else {
         fullPage = await getPageWithSections(currentPage.id, user.id);
       }
@@ -380,69 +449,138 @@ export default async function DocsPage({ params }: DocsPageProps) {
       
       // Only check edit permissions if not a published doc
       if (!isPublishedRoute) {
-        // Check if user can edit (owner or editor, not viewer)
-        // Get the document ID from the page
-        const pageData = await prisma.page.findUnique({
-          where: { id: currentPage.id },
-          select: {
-            documentId: true,
-            document: {
-              select: {
-                id: true,
-                userId: true,
-                projectId: true,
+        // CRITICAL OPTIMIZATION: Try to determine ownership from nav data FIRST
+        // This avoids an extra database query in most cases
+        const ownership = data.ownership;
+        let docId: string | null = null;
+        let projectId: string | null = null;
+        
+        // Try to find documentId from processed data first
+        // Check if currentPage belongs to a document we know about
+        for (const project of processedProjects) {
+          for (const doc of project.documents) {
+            if (doc.pages.some(p => p.id === currentPage.id)) {
+              docId = doc.id;
+              projectId = project.id;
+              break;
+            }
+          }
+          if (docId) break;
+        }
+        
+        if (!docId) {
+          for (const doc of processedYourDocs) {
+            if (doc.pages.some(p => p.id === currentPage.id)) {
+              docId = doc.id;
+              break;
+            }
+          }
+        }
+        
+        // If we found the doc in nav data, check ownership immediately (no DB query needed)
+        if (docId && ownership) {
+          const isDocOwned = ownership.ownedDocIds.has(docId);
+          const isProjectOwned = projectId ? ownership.ownedProjectIds.has(projectId) : false;
+          const isProjectDocOwned = ownership.ownedProjectDocumentIds.has(docId);
+          
+          if (isDocOwned || isProjectOwned || isProjectDocOwned) {
+            canEdit = true;
+            isOwner = isDocOwned || (projectId && ownership.ownedProjectIds.has(projectId));
+          } else {
+            // Not owned - need to check shares, but fetch document info in parallel
+            const [pageData, directShare, projectShare] = await Promise.all([
+              prisma.page.findUnique({
+                where: { id: currentPage.id },
+                select: {
+                  documentId: true,
+                  document: {
+                    select: {
+                      id: true,
+                      userId: true,
+                      projectId: true,
+                    },
+                  },
+                },
+              }),
+              prisma.share.findFirst({
+                where: {
+                  documentId: docId,
+                  sharedWith: user.id,
+                  status: 'accepted',
+                  role: 'editor',
+                },
+                select: { role: true },
+              }),
+              projectId ? prisma.share.findFirst({
+                where: {
+                  projectId: projectId,
+                  sharedWith: user.id,
+                  status: 'accepted',
+                  role: 'editor',
+                },
+                select: { role: true },
+              }) : null,
+            ]);
+            
+            if (pageData?.document) {
+              isOwner = pageData.document.userId === user.id;
+            }
+            canEdit = !!(directShare || projectShare);
+          }
+        } else {
+          // Fallback: if we can't find doc in nav data, fetch it
+          const pageData = await prisma.page.findUnique({
+            where: { id: currentPage.id },
+            select: {
+              documentId: true,
+              document: {
+                select: {
+                  id: true,
+                  userId: true,
+                  projectId: true,
+                },
               },
             },
-          },
-        });
-        
-        if (pageData && pageData.document) {
-          const doc = pageData.document;
-          const isDocOwner = doc.userId === user.id;
-          isOwner = isDocOwner; // Set isOwner flag
+          });
           
-          if (isDocOwner) {
-            canEdit = true;
-          } else {
-            // Check if user has been directly shared with the document as editor
-            const directShare = await prisma.share.findFirst({
-              where: {
-                documentId: doc.id,
-                sharedWith: user.id,
-                status: 'accepted',
-                role: 'editor',
-              },
-            });
+          if (pageData?.document) {
+            const doc = pageData.document;
+            isOwner = doc.userId === user.id;
             
-            if (directShare) {
+            if (isOwner) {
               canEdit = true;
-            } else if (doc.projectId) {
-              // Check project access
-              const project = await prisma.project.findUnique({
-                where: { id: doc.projectId },
-                select: { userId: true },
-              });
+            } else if (ownership) {
+              const isDocOwned = ownership.ownedDocIds.has(doc.id);
+              const isProjectOwned = doc.projectId ? ownership.ownedProjectIds.has(doc.projectId) : false;
+              const isProjectDocOwned = ownership.ownedProjectDocumentIds.has(doc.id);
               
-              if (project) {
-                const isProjectOwner = project.userId === user.id;
-                if (isProjectOwner) {
-                  canEdit = true;
-                } else {
-                  // Check if user has been shared with the project as editor
-                  const projectShare = await prisma.share.findFirst({
+              if (isDocOwned || isProjectOwned || isProjectDocOwned) {
+                canEdit = true;
+              } else {
+                // Check shares
+                const [directShare, projectShare] = await Promise.all([
+                  prisma.share.findFirst({
+                    where: {
+                      documentId: doc.id,
+                      sharedWith: user.id,
+                      status: 'accepted',
+                      role: 'editor',
+                    },
+                    select: { role: true },
+                  }),
+                  doc.projectId ? prisma.share.findFirst({
                     where: {
                       projectId: doc.projectId,
                       sharedWith: user.id,
                       status: 'accepted',
                       role: 'editor',
                     },
-                  });
-                  
-                  canEdit = projectShare ? true : false;
-                }
+                    select: { role: true },
+                  }) : null,
+                ]);
+                
+                canEdit = !!(directShare || projectShare);
               }
-            } else {
-              canEdit = false;
             }
           }
         }
