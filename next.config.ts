@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   typescript: {
@@ -7,13 +8,14 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Disable Turbopack for production builds to avoid module resolution issues
-  experimental: {
-    turbo: {
-      resolveAlias: {
-        '@': './',
-      },
-    },
+  // Use webpack instead of Turbopack for more lenient module resolution
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@": path.resolve(__dirname),
+    };
+    config.resolve.fallback = { fs: false, net: false, tls: false };
+    return config;
   },
 };
 
