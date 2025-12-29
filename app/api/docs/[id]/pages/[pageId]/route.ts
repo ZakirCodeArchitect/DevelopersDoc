@@ -405,6 +405,34 @@ function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
 function extractHeadingsForTOC(tiptapJSON: any) {
   const headings: Array<{ id: string; label: string; level: number }> = [];
   let foundFirstH1 = false;
+  const usedIds = new Set<string>();
+  let headingIndex = 0;
+
+  // Helper to generate unique ID from text
+  const generateUniqueId = (text: string, baseLevel: number): string => {
+    headingIndex++;
+    const baseId = text
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    
+    // If text is empty or only special characters, use index-based ID
+    if (!baseId) {
+      return `heading-${baseLevel}-${headingIndex}`;
+    }
+    
+    // Check if ID already exists, append number if needed
+    let uniqueId = baseId;
+    let counter = 1;
+    while (usedIds.has(uniqueId)) {
+      uniqueId = `${baseId}-${counter}`;
+      counter++;
+    }
+    
+    usedIds.add(uniqueId);
+    return uniqueId;
+  };
 
   tiptapJSON.content?.forEach((node: any) => {
     if (node.type === 'heading') {
@@ -419,11 +447,7 @@ function extractHeadingsForTOC(tiptapJSON: any) {
       // Include H2, H3, H4 (and subsequent H1s treated as sections)
       if (level >= 2 && level <= 4) {
         const text = node.content?.map((n: any) => n.text || '').join('').trim() || '';
-        const id = text
-          .toLowerCase()
-          .trim()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '') || `heading-${Date.now()}`;
+        const id = generateUniqueId(text, level);
         
         headings.push({
           id,
@@ -435,11 +459,7 @@ function extractHeadingsForTOC(tiptapJSON: any) {
       // Include subsequent H1s as top-level sections in TOC
       if (level === 1 && foundFirstH1) {
         const text = node.content?.map((n: any) => n.text || '').join('').trim() || '';
-        const id = text
-          .toLowerCase()
-          .trim()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-+|-+$/g, '') || `heading-${Date.now()}`;
+        const id = generateUniqueId(text, level);
         
         headings.push({
           id,

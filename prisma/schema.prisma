@@ -45,6 +45,7 @@ model Document {
   
   pages       Page[]
   shares      Share[]
+  publishedDocument PublishedDocument? // Reference to published version
 
   @@map("documents")
 }
@@ -115,5 +116,16 @@ model Share {
   sharedWithUser User?  @relation("SharedWithUser", fields: [sharedWith], references: [id], onDelete: SetNull)
 
   @@map("shares")
+}
+
+model PublishedDocument {
+  id          String   @id @default(uuid())
+  documentId String   @unique // Reference to the original document
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  publishSlug String  @unique // URL-friendly slug for public access
+  publishedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("published_documents")
 }
 

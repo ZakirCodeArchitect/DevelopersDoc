@@ -16,4 +16,7 @@ export { DeleteConfirmModal } from './DeleteConfirmModal';
 export { useRenameDelete } from './useRenameDelete';
 export { DocsLandingPage } from './DocsLandingPage';
 export { ShareModal } from './ShareModal';
+export { PublishModal } from './PublishModal';
+export { PublishedDocsList } from './PublishedDocsList';
+export { PublishedDocViewer } from './PublishedDocViewer';
 

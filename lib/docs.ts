@@ -391,6 +391,70 @@ export function processProjects(projects: ProjectData[]): ProcessedProject[] {
 }
 
 /**
+ * Generate href for a published document
+ * Uses page ID directly, no slug needed
+ */
+function generatePublishedDocHref(pageId: string): string {
+  return `/docs/published/${pageId}`;
+}
+
+/**
+ * Process published documents: add hrefs and generate TOC
+ * Similar to processYourDocs but uses publishSlug for URLs
+ */
+export function processPublishedDocs(publishedDocs: YourDocData[] | undefined, publishSlugs: Map<string, string>): ProcessedYourDoc[] {
+  if (!publishedDocs || !Array.isArray(publishedDocs)) {
+    return [];
+  }
+  return publishedDocs.map((doc) => {
+    const processedPages: ProcessedPage[] = (doc.content.pages || []).map((page, pageIndex) => {
+      // Use page ID directly for href - no slug needed
+      const pageHref = generatePublishedDocHref(page.id);
+      const toc = generateTocFromSections(page.sections || []);
+
+      // Generate page navigation (previous/next page within document)
+      const previous: NavLink | null =
+        pageIndex > 0
+          ? {
+              label: doc.content.pages[pageIndex - 1].title,
+              href: generatePublishedDocHref(doc.content.pages[pageIndex - 1].id),
+            }
+          : null;
+      const next: NavLink | null =
+        pageIndex < doc.content.pages.length - 1
+          ? {
+              label: doc.content.pages[pageIndex + 1].title,
+              href: generatePublishedDocHref(doc.content.pages[pageIndex + 1].id),
+            }
+          : null;
+
+      return {
+        ...page,
+        href: pageHref,
+        toc,
+        navigation: {
+          previous,
+          next,
+        },
+      };
+    });
+
+    // For document href, use first page ID
+    const firstPageHref = processedPages.length > 0 ? processedPages[0].href : `/docs/published/${doc.id}`;
+
+    return {
+      id: doc.id,
+      label: doc.label,
+      title: doc.title,
+      description: doc.description,
+      lastUpdated: doc.lastUpdated,
+      href: firstPageHref,
+      pages: processedPages,
+    };
+  });
+}
+
+/**
  * Process "Your Docs": add hrefs and generate TOC
  */
 export function processYourDocs(yourDocs: YourDocData[]): ProcessedYourDoc[] {
@@ -445,53 +509,73 @@ export function processYourDocs(yourDocs: YourDocData[]): ProcessedYourDoc[] {
 export function buildSidebarItems(
   projects: ProcessedProject[],
   yourDocs: ProcessedYourDoc[],
+  publishedDocs?: ProcessedYourDoc[],
   ownership?: {
     ownedProjectIds: Set<string>;
     ownedDocIds: Set<string>;
     ownedProjectDocumentIds: Set<string>;
   }
 ): NavItem[] {
-  return [
+  const navItems: NavItem[] = [
     {
       label: 'Dashboard',
       href: '/docs',
     },
-    {
-      label: 'Projects',
-      href: '#',
-      children: projects.map((project) => {
-        const isOwner = ownership?.ownedProjectIds.has(project.id) ?? false;
-        
-        return {
-          label: project.label,
-          href: project.href,
-          isOwner,
-          children: project.documents.map((doc) => {
-            const isDocOwner = ownership?.ownedProjectDocumentIds.has(doc.id) ?? false;
-            
-            return {
-              label: doc.label,
-              href: doc.href,
-              isOwner: isDocOwner,
-            };
-          }),
-        };
-      }),
-    },
-    {
-      label: 'Your Docs',
-      href: '#',
-      children: yourDocs.map((doc) => {
-        const isOwner = ownership?.ownedDocIds.has(doc.id) ?? false;
-        
-        return {
-          label: doc.label,
-          href: doc.href,
-          isOwner,
-        };
-      }),
-    },
   ];
+
+  // Add Published Docs section above Projects (if any published docs exist)
+  if (publishedDocs && publishedDocs.length > 0) {
+    navItems.push({
+      label: 'Published Docs',
+      href: '#',
+      children: publishedDocs.map((doc) => ({
+        label: doc.label,
+        href: doc.href,
+        isOwner: false, // Published docs are always view-only
+      })),
+    });
+  }
+
+  // Add Projects section
+  navItems.push({
+    label: 'Projects',
+    href: '#',
+    children: projects.map((project) => {
+      const isOwner = ownership?.ownedProjectIds.has(project.id) ?? false;
+      
+      return {
+        label: project.label,
+        href: project.href,
+        isOwner,
+        children: project.documents.map((doc) => {
+          const isDocOwner = ownership?.ownedProjectDocumentIds.has(doc.id) ?? false;
+          
+          return {
+            label: doc.label,
+            href: doc.href,
+            isOwner: isDocOwner,
+          };
+        }),
+      };
+    }),
+  });
+
+  // Add Your Docs section
+  navItems.push({
+    label: 'Your Docs',
+    href: '#',
+    children: yourDocs.map((doc) => {
+      const isOwner = ownership?.ownedDocIds.has(doc.id) ?? false;
+      
+      return {
+        label: doc.label,
+        href: doc.href,
+        isOwner,
+      };
+    }),
+  });
+
+  return navItems;
 }
 
 /**
@@ -500,7 +584,8 @@ export function buildSidebarItems(
 export function findDocumentByPath(
   path: string,
   projects: ProcessedProject[],
-  yourDocs: ProcessedYourDoc[]
+  yourDocs: ProcessedYourDoc[],
+  publishedDocs?: ProcessedYourDoc[]
 ): ProcessedDocument | ProcessedProject | ProcessedYourDoc | ProcessedPage | null {
   // Check projects and their documents/pages
   for (const project of projects) {
@@ -535,6 +620,22 @@ export function findDocumentByPath(
     }
   }
 
+  // Check published docs and their pages
+  if (publishedDocs) {
+    for (const doc of publishedDocs) {
+      if (doc.href === path) {
+        // Return first page if document has pages, otherwise return doc
+        return doc.pages.length > 0 ? doc.pages[0] : doc;
+      }
+      // Check pages within document
+      for (const page of doc.pages) {
+        if (page.href === path) {
+          return page;
+        }
+      }
+    }
+  }
+
   return null;
 }
 
@@ -544,12 +645,13 @@ export function findDocumentByPath(
 export function getDocumentForPage(
   page: ProcessedPage,
   projects: ProcessedProject[],
-  yourDocs: ProcessedYourDoc[]
+  yourDocs: ProcessedYourDoc[],
+  publishedDocs?: ProcessedYourDoc[]
 ): ProcessedDocument | ProcessedYourDoc | null {
   // Check projects
   for (const project of projects) {
     for (const doc of project.documents) {
-      if (doc.pages.some(p => p.href === page.href)) {
+      if (doc.pages.some(p => p.href === page.href || p.id === page.id)) {
         return doc;
       }
     }
@@ -557,8 +659,17 @@ export function getDocumentForPage(
 
   // Check your docs
   for (const doc of yourDocs) {
-    if (doc.pages.some(p => p.href === page.href)) {
+    if (doc.pages.some(p => p.href === page.href || p.id === page.id)) {
       return doc;
+    }
+  }
+
+  // Check published docs
+  if (publishedDocs) {
+    for (const doc of publishedDocs) {
+      if (doc.pages.some(p => p.href === page.href || p.id === page.id)) {
+        return doc;
+      }
     }
   }
 

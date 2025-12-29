@@ -21,6 +21,7 @@ interface DocTableOfContentsProps {
   onAddPage?: () => void;
   onEditPage?: () => void;
   onShare?: () => void;
+  onPublish?: () => void;
   projectName?: string;
   pages?: PageLink[];
   currentPageId?: string;
@@ -34,6 +35,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   onAddPage,
   onEditPage,
   onShare,
+  onPublish,
   projectName,
   pages,
   currentPageId,
@@ -191,6 +193,28 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
                   />
                 </svg>
                 Share
+              </button>
+            )}
+            {onPublish && (
+              <button
+                onClick={onPublish}
+                className="w-full text-sm text-[#CC561E] hover:text-[#B84A17] transition-colors flex items-center gap-2 px-3 py-2 rounded-md hover:bg-orange-50 border border-orange-200 hover:border-orange-300"
+                title="Publish this document"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                  />
+                </svg>
+                Publish
               </button>
             )}
           </div>

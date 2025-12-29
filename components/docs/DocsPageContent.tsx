@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useCreateDoc } from './CreateDocHandler';
 import { useAddPage } from './AddPageHandler';
 import { ShareModal } from './ShareModal';
+import { PublishModal } from './PublishModal';
 import dynamic from 'next/dynamic';
 
 // Dynamically import DocEditor to avoid SSR issues with Tiptap
@@ -86,7 +87,9 @@ interface DocsPageContentProps {
   currentPage: ProcessedDocument | ProcessedProject | ProcessedYourDoc | ProcessedPage | null;
   processedProjects: ProcessedProject[];
   processedYourDocs: ProcessedYourDoc[];
+  processedPublishedDocs?: ProcessedYourDoc[];
   canEdit?: boolean; // If false, user is a viewer and cannot edit
+  isOwner?: boolean; // If true, user is the document owner (only owners can publish)
 }
 
 const DocsPageContentComponent = ({
@@ -94,7 +97,9 @@ const DocsPageContentComponent = ({
   currentPage,
   processedProjects,
   processedYourDocs,
+  processedPublishedDocs = [],
   canEdit = true, // Default to true for backward compatibility
+  isOwner = false, // Default to false - only owners can publish
 }: DocsPageContentProps) => {
   const [activeTocId, setActiveTocId] = useState<string | undefined>();
   const [isEditing, setIsEditing] = useState(false);
@@ -111,6 +116,11 @@ const DocsPageContentComponent = ({
   const [shareItemId, setShareItemId] = useState<string>('');
   const [shareItemName, setShareItemName] = useState<string>('');
   const [shareType, setShareType] = useState<'document' | 'project'>('document');
+
+  // Publish modal state
+  const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const [publishDocumentId, setPublishDocumentId] = useState<string>('');
+  const [publishDocumentName, setPublishDocumentName] = useState<string>('');
 
   // Project members state
   interface ProjectMember {
@@ -137,6 +147,12 @@ const DocsPageContentComponent = ({
     setShareType('project');
     setShareModalOpen(true);
   };
+
+  const handlePublishDocument = (documentId: string, documentName: string) => {
+    setPublishDocumentId(documentId);
+    setPublishDocumentName(documentName);
+    setPublishModalOpen(true);
+  };
   
   // Use transition to handle navigation smoothly
   const [isPending, startTransition] = useTransition();
@@ -162,6 +178,20 @@ const DocsPageContentComponent = ({
   
   // Use displayContent for rendering to prevent blinking
   const pageToRender = displayContent.page;
+  
+  // Debug logging for published routes
+  useEffect(() => {
+    if (currentPath.startsWith('/docs/published')) {
+      console.log('[DEBUG Client] DocsPageContent:', {
+        currentPath,
+        currentPageProp: !!currentPage,
+        displayContentPage: !!displayContent.page,
+        pageToRender: !!pageToRender,
+        isPage: pageToRender ? isPage(pageToRender) : false,
+        sectionsCount: pageToRender && isPage(pageToRender) ? (pageToRender.sections?.length || 0) : 0,
+      });
+    }
+  }, [currentPath, currentPage, displayContent.page, pageToRender]);
   
   // If page not found, show 404
   if (!pageToRender) {
@@ -460,6 +490,12 @@ const DocsPageContentComponent = ({
           itemName={shareItemName}
           canShare={canEdit}
         />
+        <PublishModal
+          isOpen={publishModalOpen}
+          onClose={() => setPublishModalOpen(false)}
+          documentId={publishDocumentId}
+          documentName={publishDocumentName}
+        />
       </div>
     );
   }
@@ -470,7 +506,18 @@ const DocsPageContentComponent = ({
   const basePage = isPageView ? pageToRender : null;
   // Use optimistic page if available, otherwise use the base page
   const page = optimisticPage || basePage;
-  const document = isPageView && page ? getDocumentForPage(page, processedProjects, processedYourDocs) : null;
+  // Get document for the page - now includes published docs
+  const document = isPageView && page ? getDocumentForPage(page, processedProjects, processedYourDocs, processedPublishedDocs) : null;
+  
+  // Debug logging for published pages
+  if (currentPath.startsWith('/docs/published') && isPageView && page) {
+    console.log('[DEBUG Client] Page rendering check:', {
+      isPageView,
+      hasPage: !!page,
+      hasDocument: !!document,
+      sectionsCount: page.sections?.length || 0,
+    });
+  }
 
   // Optimistic page tracking removed - no debug logs needed
 
@@ -872,7 +919,8 @@ const DocsPageContentComponent = ({
           activeId={activeTocId}
           onAddPage={() => handleAddPage(document.id, document.title, projectId)}
           onEditPage={() => setIsEditing(true)}
-          onShare={() => handleShareDocument(document.id, document.title)}
+          onShare={currentPath.startsWith('/docs/published') ? undefined : () => handleShareDocument(document.id, document.title)}
+          onPublish={isOwner ? () => handlePublishDocument(document.id, document.title) : undefined}
           projectName={projectName}
           pages={document.pages.map(p => ({
             id: p.id,
@@ -890,6 +938,12 @@ const DocsPageContentComponent = ({
           itemId={shareItemId}
           itemName={shareItemName}
           canShare={canEdit}
+        />
+        <PublishModal
+          isOpen={publishModalOpen}
+          onClose={() => setPublishModalOpen(false)}
+          documentId={publishDocumentId}
+          documentName={publishDocumentName}
         />
       </div>
     );

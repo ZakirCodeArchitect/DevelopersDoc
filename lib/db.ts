@@ -218,6 +218,72 @@ export async function getAllDocsData(userId: string): Promise<DocsData> {
 }
 
 /**
+ * NAV-ONLY: Get all published documents WITHOUT sections content
+ * Returns both the documents and a map of documentId -> publishSlug
+ * Queries from PublishedDocument table
+ */
+export async function getAllPublishedDocsNav(): Promise<{
+  documents: YourDocData[];
+  publishSlugs: Map<string, string>;
+}> {
+  try {
+    // Query from PublishedDocument table
+    const publishedDocs = await (prisma.publishedDocument.findMany as any)({
+      include: {
+        document: {
+          include: {
+            pages: {
+              orderBy: { pageNumber: 'asc' },
+              select: {
+                id: true,
+                title: true,
+                pageNumber: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { publishedAt: 'desc' },
+    });
+
+    const publishSlugs = new Map<string, string>();
+    const docsData: YourDocData[] = (publishedDocs || []).map((pubDoc: any) => {
+      const doc = pubDoc.document;
+      if (pubDoc.publishSlug) {
+        publishSlugs.set(doc.id, pubDoc.publishSlug);
+      }
+      return {
+        id: doc.id,
+        label: doc.title,
+        title: doc.title,
+        description: doc.description || undefined,
+        lastUpdated: doc.lastUpdated,
+        content: {
+          pages: (doc.pages || []).map((page: any) => ({
+            id: page.id,
+            title: page.title,
+            pageNumber: page.pageNumber,
+            sections: [], // nav-only
+          })),
+        },
+      };
+    });
+
+    return {
+      documents: docsData,
+      publishSlugs,
+    };
+  } catch (error) {
+    // If schema hasn't been migrated yet, return empty array
+    console.warn('Published docs not available (schema may need migration):', error);
+    return {
+      documents: [],
+      publishSlugs: new Map(),
+    };
+  }
+}
+
+/**
  * NAV-ONLY: Get projects/documents/pages WITHOUT sections content for a specific user.
  * This is dramatically smaller and faster for route navigation + sidebar trees.
  */
@@ -309,12 +375,26 @@ export async function getAllYourDocsNav(userId: string): Promise<YourDocData[]> 
  * NAV-ONLY: Get projects + your docs WITHOUT sections content for a specific user, including shared items.
  */
 export async function getAllDocsNavData(userId: string): Promise<DocsData> {
-  const [ownedProjects, ownedYourDocs, sharedProjects, sharedYourDocs] = await Promise.all([
+  // Fetch owned projects and docs first
+  const [ownedProjects, ownedYourDocs] = await Promise.all([
     getAllProjectsNav(userId),
     getAllYourDocsNav(userId),
-    getSharedProjects(userId),
-    getSharedDocuments(userId),
   ]);
+
+  // Try to fetch shared docs, but handle errors gracefully if Share model doesn't exist
+  let sharedProjects: any[] = [];
+  let sharedYourDocs: any[] = [];
+  try {
+    [sharedProjects, sharedYourDocs] = await Promise.all([
+      getSharedProjects(userId),
+      getSharedDocuments(userId),
+    ]);
+  } catch (error) {
+    // If Share model doesn't exist or Prisma client not regenerated, just skip shared docs
+    console.warn('Could not fetch shared documents (Share model may not exist):', error);
+    sharedProjects = [];
+    sharedYourDocs = [];
+  }
 
   // Convert shared projects to ProjectData format (nav-only)
   const sharedProjectsData: ProjectData[] = sharedProjects.map(project => ({
