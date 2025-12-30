@@ -17,7 +17,69 @@ import { DocsPageContent } from '@/components/docs/DocsPageContent';
 import { DocsLandingPage } from '@/components/docs/DocsLandingPage';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
+
+// CRITICAL: Define cached functions OUTSIDE the component to avoid recreating them on every render
+// This ensures the cache actually works across requests
+const getAllDocsNavDataCached = unstable_cache(
+  async (userId: string) => getAllDocsNavData(userId),
+  ['nav-data'],
+  { 
+    revalidate: 30, // Cache for 30 seconds - navigation data doesn't change often
+    tags: ['nav-data']
+  }
+);
+
+const getAllPublishedDocsNavCached = unstable_cache(
+  async () => getAllPublishedDocsNav(),
+  ['published-nav-data'],
+  { 
+    revalidate: 30, // Cache for 30 seconds
+    tags: ['published-nav-data']
+  }
+);
+
+// Cache individual page/document queries to avoid duplicate queries
+const getPageWithDocument = cache(async (pageId: string) => {
+  return prisma.page.findUnique({
+    where: { id: pageId },
+    select: {
+      documentId: true,
+      document: {
+        select: {
+          id: true,
+          userId: true,
+          projectId: true,
+        },
+      },
+    },
+  });
+});
+
+const getDirectShare = cache(async (documentId: string, userId: string) => {
+  return prisma.share.findFirst({
+    where: {
+      documentId,
+      sharedWith: userId,
+      status: 'accepted',
+      role: 'editor',
+    },
+    select: { role: true },
+  });
+});
+
+const getProjectShare = cache(async (projectId: string, userId: string) => {
+  return prisma.share.findFirst({
+    where: {
+      projectId,
+      sharedWith: userId,
+      status: 'accepted',
+      role: 'editor',
+    },
+    select: { role: true },
+  });
+});
 
 interface DocsPageProps {
   params: Promise<{
@@ -41,9 +103,7 @@ export default async function DocsPage({ params }: DocsPageProps) {
 
   // NAV-ONLY dataset (no sections) for fast navigation and small payloads
   // CRITICAL OPTIMIZATION: Fetch all navigation data in parallel
-  // Use React cache to deduplicate requests within the same render
-  const getAllDocsNavDataCached = cache(getAllDocsNavData);
-  const getAllPublishedDocsNavCached = cache(getAllPublishedDocsNav);
+  // Cache functions are defined at module level to ensure proper caching
   
   // Fetch both in parallel instead of sequentially
   let data;
@@ -52,9 +112,22 @@ export default async function DocsPage({ params }: DocsPageProps) {
     publishSlugs: new Map(),
   };
   
+  // PERFORMANCE MONITORING: Track timing for each operation
+  const perfStart = performance.now();
+  
   try {
-    [data, publishedDocsData] = await Promise.all([
-      getAllDocsNavDataCached(user.id).catch((error) => {
+    const [navDataResult, publishedResult] = await Promise.all([
+      (async () => {
+        const start = performance.now();
+        try {
+          const result = await getAllDocsNavDataCached(user.id);
+          console.log(`[PERF] getAllDocsNavData: ${(performance.now() - start).toFixed(2)}ms`);
+          return result;
+        } catch (error) {
+          console.warn(`[PERF] getAllDocsNavData failed after ${(performance.now() - start).toFixed(2)}ms:`, error);
+          throw error;
+        }
+      })().catch((error) => {
         // If getAllDocsNavData fails (e.g., Share model not available), use minimal data
         console.warn('Error fetching all docs nav data, using minimal data:', error);
         return Promise.all([
@@ -70,12 +143,22 @@ export default async function DocsPage({ params }: DocsPageProps) {
           },
         }));
       }),
-      getAllPublishedDocsNavCached().catch((error) => {
-        // If published docs can't be fetched (e.g., schema not migrated), just continue without them
-        console.error('Error fetching published docs:', error);
-        return { documents: [], publishSlugs: new Map() };
-      }),
+      (async () => {
+        const start = performance.now();
+        try {
+          const result = await getAllPublishedDocsNavCached();
+          console.log(`[PERF] getAllPublishedDocsNav: ${(performance.now() - start).toFixed(2)}ms`);
+          return result;
+        } catch (error) {
+          console.error(`[PERF] getAllPublishedDocsNav failed after ${(performance.now() - start).toFixed(2)}ms:`, error);
+          return { documents: [], publishSlugs: new Map() };
+        }
+      })(),
     ]);
+    
+    data = navDataResult;
+    publishedDocsData = publishedResult;
+    console.log(`[PERF] Total nav data fetch: ${(performance.now() - perfStart).toFixed(2)}ms`);
   } catch (error) {
     console.error('Critical error fetching navigation data:', error);
     // Fallback to minimal data
@@ -457,91 +540,98 @@ export default async function DocsPage({ params }: DocsPageProps) {
         
         // Try to find documentId from processed data first
         // Check if currentPage belongs to a document we know about
-        for (const project of processedProjects) {
-          for (const doc of project.documents) {
-            if (doc.pages.some(p => p.id === currentPage.id)) {
-              docId = doc.id;
-              projectId = project.id;
-              break;
+        if (currentPage) {
+          const pageId = currentPage.id;
+          for (const project of processedProjects) {
+            for (const doc of project.documents) {
+              if (doc.pages.some(p => p.id === pageId)) {
+                docId = doc.id;
+                projectId = project.id;
+                break;
+              }
+            }
+            if (docId) break;
+          }
+          
+          if (!docId) {
+            for (const doc of processedYourDocs) {
+              if (doc.pages.some(p => p.id === pageId)) {
+                docId = doc.id;
+                break;
+              }
             }
           }
-          if (docId) break;
         }
         
-        if (!docId) {
-          for (const doc of processedYourDocs) {
-            if (doc.pages.some(p => p.id === currentPage.id)) {
-              docId = doc.id;
-              break;
-            }
-          }
-        }
+        // Debug: Log what we found
+        console.log('[DEBUG] Permission check:', { 
+          hasDocId: !!docId, 
+          hasOwnership: !!ownership, 
+          hasCurrentPage: !!currentPage,
+          pageId: currentPage?.id 
+        });
         
         // If we found the doc in nav data, check ownership immediately (no DB query needed)
+        // Note: unstable_cache serializes Sets to arrays, so we need to convert back
         if (docId && ownership) {
-          const isDocOwned = ownership.ownedDocIds.has(docId);
-          const isProjectOwned = projectId ? ownership.ownedProjectIds.has(projectId) : false;
-          const isProjectDocOwned = ownership.ownedProjectDocumentIds.has(docId);
+          // Helper to safely convert to Set (handles Set, Array, or other types)
+          const toSet = (value: any): Set<string> => {
+            if (value instanceof Set) return value;
+            if (Array.isArray(value)) return new Set(value);
+            // If it's an object (from serialization), try to extract values
+            if (value && typeof value === 'object') {
+              try {
+                return new Set(Object.values(value) as string[]);
+              } catch {
+                return new Set();
+              }
+            }
+            return new Set();
+          };
+          
+          const ownedDocIds = toSet(ownership.ownedDocIds);
+          const ownedProjectIds = toSet(ownership.ownedProjectIds);
+          const ownedProjectDocumentIds = toSet(ownership.ownedProjectDocumentIds);
+          
+          const isDocOwned = ownedDocIds.has(docId);
+          const isProjectOwned = projectId ? ownedProjectIds.has(projectId) : false;
+          const isProjectDocOwned = ownedProjectDocumentIds.has(docId);
+          
+          console.log('[DEBUG] Ownership check:', { 
+            isDocOwned, 
+            isProjectOwned, 
+            isProjectDocOwned,
+            docId,
+            projectId
+          });
           
           if (isDocOwned || isProjectOwned || isProjectDocOwned) {
             canEdit = true;
-            isOwner = isDocOwned || (projectId && ownership.ownedProjectIds.has(projectId));
+            isOwner = isDocOwned || (projectId ? ownedProjectIds.has(projectId) : false);
           } else {
-            // Not owned - need to check shares, but fetch document info in parallel
-            const [pageData, directShare, projectShare] = await Promise.all([
-              prisma.page.findUnique({
-                where: { id: currentPage.id },
-                select: {
-                  documentId: true,
-                  document: {
-                    select: {
-                      id: true,
-                      userId: true,
-                      projectId: true,
-                    },
-                  },
-                },
-              }),
-              prisma.share.findFirst({
-                where: {
-                  documentId: docId,
-                  sharedWith: user.id,
-                  status: 'accepted',
-                  role: 'editor',
-                },
-                select: { role: true },
-              }),
-              projectId ? prisma.share.findFirst({
-                where: {
-                  projectId: projectId,
-                  sharedWith: user.id,
-                  status: 'accepted',
-                  role: 'editor',
-                },
-                select: { role: true },
-              }) : null,
-            ]);
-            
-            if (pageData?.document) {
-              isOwner = pageData.document.userId === user.id;
+            // Not found in nav ownership - need to check shares and verify ownership from DB
+            // Use cached functions to avoid duplicate queries
+            if (currentPage) {
+              const [pageData, directShare, projectShare] = await Promise.all([
+                getPageWithDocument(currentPage.id),
+                getDirectShare(docId, user.id),
+                projectId ? getProjectShare(projectId, user.id) : null,
+              ]);
+              
+              if (pageData?.document) {
+                isOwner = pageData.document.userId === user.id;
+                // If user is the owner, they can always edit
+                // Otherwise, check if they have editor share access
+                canEdit = isOwner || !!(directShare || projectShare);
+              } else {
+                // Fallback: if we can't get document info, check shares only
+                canEdit = !!(directShare || projectShare);
+              }
             }
-            canEdit = !!(directShare || projectShare);
           }
-        } else {
-          // Fallback: if we can't find doc in nav data, fetch it
-          const pageData = await prisma.page.findUnique({
-            where: { id: currentPage.id },
-            select: {
-              documentId: true,
-              document: {
-                select: {
-                  id: true,
-                  userId: true,
-                  projectId: true,
-                },
-              },
-            },
-          });
+        } else if (currentPage) {
+          // Fallback: if we can't find doc in nav data, fetch it (cached)
+          const pageData = await getPageWithDocument(currentPage.id);
           
           if (pageData?.document) {
             const doc = pageData.document;
@@ -550,33 +640,35 @@ export default async function DocsPage({ params }: DocsPageProps) {
             if (isOwner) {
               canEdit = true;
             } else if (ownership) {
-              const isDocOwned = ownership.ownedDocIds.has(doc.id);
-              const isProjectOwned = doc.projectId ? ownership.ownedProjectIds.has(doc.projectId) : false;
-              const isProjectDocOwned = ownership.ownedProjectDocumentIds.has(doc.id);
+              // Handle Sets that may have been serialized to arrays/objects by unstable_cache
+              const toSet = (value: any): Set<string> => {
+                if (value instanceof Set) return value;
+                if (Array.isArray(value)) return new Set(value);
+                if (value && typeof value === 'object') {
+                  try {
+                    return new Set(Object.values(value) as string[]);
+                  } catch {
+                    return new Set();
+                  }
+                }
+                return new Set();
+              };
+              
+              const ownedDocIds = toSet(ownership.ownedDocIds);
+              const ownedProjectIds = toSet(ownership.ownedProjectIds);
+              const ownedProjectDocumentIds = toSet(ownership.ownedProjectDocumentIds);
+              
+              const isDocOwned = ownedDocIds.has(doc.id);
+              const isProjectOwned = doc.projectId ? ownedProjectIds.has(doc.projectId) : false;
+              const isProjectDocOwned = ownedProjectDocumentIds.has(doc.id);
               
               if (isDocOwned || isProjectOwned || isProjectDocOwned) {
                 canEdit = true;
               } else {
-                // Check shares
+                // Check shares (cached)
                 const [directShare, projectShare] = await Promise.all([
-                  prisma.share.findFirst({
-                    where: {
-                      documentId: doc.id,
-                      sharedWith: user.id,
-                      status: 'accepted',
-                      role: 'editor',
-                    },
-                    select: { role: true },
-                  }),
-                  doc.projectId ? prisma.share.findFirst({
-                    where: {
-                      projectId: doc.projectId,
-                      sharedWith: user.id,
-                      status: 'accepted',
-                      role: 'editor',
-                    },
-                    select: { role: true },
-                  }) : null,
+                  getDirectShare(doc.id, user.id),
+                  doc.projectId ? getProjectShare(doc.projectId, user.id) : null,
                 ]);
                 
                 canEdit = !!(directShare || projectShare);
@@ -598,6 +690,14 @@ export default async function DocsPage({ params }: DocsPageProps) {
       currentPageId: currentPage && isPage(currentPage) ? currentPage.id : null,
     });
   }
+
+  // Debug: Log final values before rendering
+  console.log('[DEBUG] Final render props:', { 
+    canEdit, 
+    isOwner, 
+    isPublishedRoute,
+    hasCurrentPage: !!currentPage 
+  });
 
   return (
     <DocsPageContent

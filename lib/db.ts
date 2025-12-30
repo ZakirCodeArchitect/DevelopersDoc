@@ -18,9 +18,23 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient();
+// PERFORMANCE MONITORING: Enable query logging in development
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  log: process.env.NODE_ENV === 'development' 
+    ? [{ emit: 'event', level: 'query' }]
+    : ['error'],
+});
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+  
+  // Log slow queries in development
+  prisma.$on('query' as never, (e: any) => {
+    if (e.duration > 100) { // Log queries taking more than 100ms
+      console.log(`[DB SLOW] ${e.duration}ms: ${e.query.substring(0, 200)}...`);
+    }
+  });
+}
 
 // Database utility functions
 
