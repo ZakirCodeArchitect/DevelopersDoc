@@ -1,11 +1,13 @@
 "use client"
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Container } from '../ui/Container';
 import { Input } from '../ui/input';
 import { SignUpButton, UserButton, SignedIn, SignedOut } from '@clerk/nextjs';
+import { SearchModal } from '../docs/SearchModal';
+import type { ProcessedProject, ProcessedYourDoc } from '@/lib/docs';
 
 interface NavLink {
   label: string;
@@ -25,6 +27,8 @@ interface HeaderProps {
   navLinks?: NavLink[];
   searchPlaceholder?: string;
   socialLinks?: SocialLink[];
+  projects?: ProcessedProject[];
+  yourDocs?: ProcessedYourDoc[];
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -33,6 +37,8 @@ export const Header: React.FC<HeaderProps> = ({
   navLinks = [],
   searchPlaceholder = 'Search documentation...',
   socialLinks,
+  projects = [],
+  yourDocs = [],
 }) => {
   const defaultSocialLinks: SocialLink[] = [
     {
@@ -59,13 +65,19 @@ export const Header: React.FC<HeaderProps> = ({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const pathname = usePathname();
   const isDocsRoute = pathname?.startsWith('/docs');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Check for Command+K (Mac) or Ctrl+K (Windows/Linux)
       if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
         event.preventDefault();
-        searchInputRef.current?.focus();
+        // Only open search modal if we have data (i.e., we're in docs route)
+        if (projects.length > 0 || yourDocs.length > 0) {
+          setIsSearchOpen(true);
+        } else {
+          searchInputRef.current?.focus();
+        }
       }
     };
 
@@ -73,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [projects.length, yourDocs.length]);
 
   return (
     <header className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur-md shadow-sm" style={{ fontFamily: 'var(--font-open-sans), sans-serif' }}>
@@ -125,7 +137,19 @@ export const Header: React.FC<HeaderProps> = ({
                 ref={searchInputRef}
                 type="search"
                 placeholder={searchPlaceholder}
-                className="w-64 h-9 bg-background border border-blue-200/60 text-sm text-foreground placeholder:text-muted-foreground pr-20 focus:border-blue-400 focus:ring-2 focus:ring-blue-200/40 focus:ring-offset-0 focus-visible:outline-none transition-all"
+                onClick={() => {
+                  // Only open search modal if we have data (i.e., we're in docs route)
+                  if (projects.length > 0 || yourDocs.length > 0) {
+                    setIsSearchOpen(true);
+                  }
+                }}
+                onFocus={() => {
+                  // Only open search modal if we have data (i.e., we're in docs route)
+                  if (projects.length > 0 || yourDocs.length > 0) {
+                    setIsSearchOpen(true);
+                  }
+                }}
+                className="w-64 h-9 bg-background border border-blue-200/60 text-sm text-foreground placeholder:text-muted-foreground pr-20 focus:border-blue-400 focus:ring-2 focus:ring-blue-200/40 focus:ring-offset-0 focus-visible:outline-none transition-all cursor-pointer"
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs pointer-events-none">
                 <kbd className="hidden sm:inline-flex h-5 select-none items-center gap-1 rounded border border-gray-300/60 bg-white px-1.5 font-mono text-[10px] font-normal text-gray-700 shadow-sm">
@@ -188,6 +212,15 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
       </div>
+      {/* Search Modal - Only show if we have data */}
+      {(projects.length > 0 || yourDocs.length > 0) && (
+        <SearchModal
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          projects={projects}
+          yourDocs={yourDocs}
+        />
+      )}
     </header>
   );
 };

@@ -5,6 +5,7 @@ import { StableSidebar } from './StableSidebar';
 import { NavItem } from './DocSidebar';
 import { Header } from '@/components/sections/Header';
 import type { ProcessedProject, ProcessedYourDoc } from '@/lib/docs';
+import { SearchModal } from './SearchModal';
 import { useCreateProject } from './CreateProjectHandler';
 import { useCreateDoc } from './CreateDocHandler';
 import { useRenameDelete } from './useRenameDelete';
@@ -141,6 +142,8 @@ export function DocsLayoutClient({
       <Header
         logoText="Developers Doc"
         navLinks={navLinks}
+        projects={processedProjects}
+        yourDocs={processedYourDocs}
       />
       <div className="flex flex-1" style={{ fontFamily: 'var(--font-lilex), monospace' }}>
         <StableSidebar
