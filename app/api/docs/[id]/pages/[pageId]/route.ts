@@ -154,6 +154,13 @@ function renderNodeToHTML(node: any): string {
     case 'horizontalRule':
       return '<hr />';
     
+    case 'image':
+      const imageSrc = node.attrs?.src || '';
+      const imageAlt = node.attrs?.alt || '';
+      const imageTitle = node.attrs?.title || '';
+      // Preserve base64 data URLs and regular URLs
+      return `<img src="${escapeHTML(imageSrc)}" alt="${escapeHTML(imageAlt)}" title="${escapeHTML(imageTitle)}" class="max-w-full h-auto rounded-lg" />`;
+    
     case 'table':
       return `<table class="border-collapse w-full my-4">${renderContent(node.content)}</table>`;
     
