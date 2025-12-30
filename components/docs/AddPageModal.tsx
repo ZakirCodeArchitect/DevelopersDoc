@@ -10,27 +10,96 @@ interface AddPageModalProps {
   onClose: () => void;
   onSubmit: (title: string, content: string) => void | Promise<void>;
   docName?: string;
+  isSubmitting?: boolean; // External submitting state from handler
+  storedFormValues?: { title: string; content: string } | null; // Values stored in handler (persist across remounts)
 }
 
-export const AddPageModal: React.FC<AddPageModalProps> = ({
+// Memoize the component to prevent remounting when props change
+const AddPageModalComponent: React.FC<AddPageModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
   docName,
+  isSubmitting: externalIsSubmitting = false,
+  storedFormValues,
 }) => {
   const [pageTitle, setPageTitle] = useState('');
   const [pageContent, setPageContent] = useState('');
   const [errors, setErrors] = useState<{ title?: string }>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [internalIsSubmitting, setInternalIsSubmitting] = useState(false);
+  
+  // Use external submitting state if provided, otherwise use internal
+  const isSubmitting = externalIsSubmitting || internalIsSubmitting;
 
-  // Reset form when modal opens/closes
+  // Track previous open state to detect when modal opens fresh
+  const prevIsOpenRef = React.useRef(false);
+  // Track if this is the first render after mount (to prevent clearing during remount)
+  const isFirstRenderRef = React.useRef(true);
+  
+  // Store form values in ref when they exist, to recover if component remounts
+  const formValuesRef = React.useRef<{ pageTitle: string; pageContent: string } | null>(null);
+  
+  // Update ref whenever form values change
+  React.useEffect(() => {
+    if (pageTitle || pageContent) {
+      formValuesRef.current = { pageTitle, pageContent };
+    }
+  }, [pageTitle, pageContent]);
+  
+  // CRITICAL: Restore form values from handler's stored values if component remounted
+  React.useEffect(() => {
+    if (storedFormValues && (!pageTitle || !pageContent)) {
+      if (!pageTitle && storedFormValues.title) {
+        setPageTitle(storedFormValues.title);
+      }
+      if (!pageContent && storedFormValues.content) {
+        setPageContent(storedFormValues.content);
+      }
+    }
+  }, [storedFormValues, pageTitle, pageContent]);
+  
+  // Reset form only when modal opens fresh (not when it closes)
+  // This keeps form values visible during submission and closing animation
   useEffect(() => {
-    if (!isOpen) {
+    // Mark that we've completed the first render
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+    }
+    
+    const wasOpen = prevIsOpenRef.current;
+    const isOpening = isOpen && !wasOpen;
+    
+    // CRITICAL: Only clear form when modal opens fresh AND we're NOT submitting
+    // Never clear during submission - this prevents form from being cleared when component remounts
+    // Also don't clear if form has values (extra safeguard)
+    // Don't clear on first render if modal is already open (prevents clearing during remount)
+    if (isOpening && !isSubmitting && !pageTitle && !pageContent && !isFirstRenderRef.current) {
       setPageTitle('');
       setPageContent('');
       setErrors({});
+      setInternalIsSubmitting(false);
     }
-  }, [isOpen]);
+    
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, isSubmitting, pageTitle, pageContent]);
+  
+  // Restore form values if form is empty when submitting
+  useEffect(() => {
+    if (isSubmitting) {
+      // CRITICAL: If form is empty, try to restore from handler's stored values first
+      if (!pageTitle && !pageContent) {
+        if (storedFormValues) {
+          setPageTitle(storedFormValues.title);
+          setPageContent(storedFormValues.content);
+          return;
+        } else if (formValuesRef.current) {
+          setPageTitle(formValuesRef.current.pageTitle);
+          setPageContent(formValuesRef.current.pageContent);
+          return;
+        }
+      }
+    }
+  }, [isSubmitting, pageTitle, pageContent, storedFormValues]);
 
   // Close on Escape key
   useEffect(() => {
@@ -43,9 +112,9 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  // Prevent body scroll when modal is open
+  // Prevent body scroll when modal is open or submitting
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen || isSubmitting) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -53,7 +122,7 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen]);
+  }, [isOpen, isSubmitting]);
 
   const validate = (): boolean => {
     const newErrors: { title?: string } = {};
@@ -69,13 +138,18 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (validate() && !isSubmitting) {
-      setIsSubmitting(true);
+      // Capture form values
+      const titleValue = pageTitle.trim();
+      const contentValue = pageContent.trim();
+      
+      // Set submitting state - form values remain in state (not cleared)
+      setInternalIsSubmitting(true);
+      
       try {
-        await onSubmit(pageTitle.trim(), pageContent.trim());
+        await onSubmit(titleValue, contentValue);
       } catch (error) {
-        console.error('Error submitting form:', error);
-      } finally {
-        setIsSubmitting(false);
+        console.error('[AddPageModal] Error submitting form:', error);
+        setInternalIsSubmitting(false);
       }
     }
   };
@@ -86,7 +160,9 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  // Keep modal visible while submitting, even if isOpen becomes false
+  // This prevents the empty form flash and keeps values visible during closing animation
+  if (!isOpen && !isSubmitting) return null;
 
   return (
     <div
@@ -125,15 +201,19 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
                 type="text"
                 value={pageTitle}
                 onChange={(e) => {
-                  setPageTitle(e.target.value);
-                  if (errors.title) {
-                    setErrors((prev) => ({ ...prev, title: undefined }));
+                  if (!isSubmitting) {
+                    setPageTitle(e.target.value);
+                    if (errors.title) {
+                      setErrors((prev) => ({ ...prev, title: undefined }));
+                    }
                   }
                 }}
                 placeholder="Enter page title"
+                disabled={isSubmitting}
                 className={cn(
                   'border-gray-300 focus:border-gray-400 focus:ring-gray-200',
-                  errors.title && 'border-red-500 focus-visible:ring-red-500 focus:border-red-500'
+                  errors.title && 'border-red-500 focus-visible:ring-red-500 focus:border-red-500',
+                  isSubmitting && 'opacity-60 cursor-not-allowed'
                 )}
                 autoFocus
               />
@@ -158,11 +238,17 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
               <textarea
                 id="page-content"
                 value={pageContent}
-                onChange={(e) => setPageContent(e.target.value)}
+                onChange={(e) => {
+                  if (!isSubmitting) {
+                    setPageContent(e.target.value);
+                  }
+                }}
                 placeholder="Enter page content"
                 rows={4}
+                disabled={isSubmitting}
                 className={cn(
-                  'flex w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-200 focus-visible:ring-offset-0 focus-visible:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50 resize-none transition-colors'
+                  'flex w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-200 focus-visible:ring-offset-0 focus-visible:border-gray-400 disabled:cursor-not-allowed disabled:opacity-50 resize-none transition-colors',
+                  isSubmitting && 'opacity-60'
                 )}
               />
               <p className="mt-1.5 text-xs text-gray-500">
@@ -187,7 +273,7 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
               disabled={isSubmitting}
               className="bg-[#CC561E] hover:bg-[#B84A17] text-white border-0 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Adding...' : 'Add Page'}
+              {isSubmitting ? 'Creating...' : 'Add Page'}
             </Button>
           </div>
         </form>
@@ -195,4 +281,13 @@ export const AddPageModal: React.FC<AddPageModalProps> = ({
     </div>
   );
 };
+
+// Set display name for better debugging
+AddPageModalComponent.displayName = 'AddPageModalComponent';
+
+// Export memoized version - React.memo prevents remounting
+// It will re-render with new props when they change, but the component instance stays the same
+// This preserves state (pageTitle, pageContent) even when isSubmitting changes
+export const AddPageModal = React.memo(AddPageModalComponent);
+AddPageModal.displayName = 'AddPageModal';
 
