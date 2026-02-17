@@ -29,8 +29,19 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## CI/CD
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **GitHub Actions** (`.github/workflows/ci-cd.yml`) runs on every **push to `main`** and on **pull requests targeting `main`**:
+  - Installs dependencies, generates Prisma client, runs **lint** and **build**.
+- For **automatic deployment** when you push to `main`, use Vercel’s Git integration (see below).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deploy on Vercel (auto-deploy on push to main)
+
+1. Go to [Vercel](https://vercel.com) and **import** this repository (or connect the GitHub repo to an existing project).
+2. Set the **Production Branch** to `main`.
+3. Add your **environment variables** in the Vercel project (e.g. `DATABASE_URL`, `DIRECT_URL`, Clerk keys, etc.).
+4. Every **push to `main`** will trigger a new deployment.
+
+Optional: to make the CI build use the same env as production, add `DATABASE_URL`, `DIRECT_URL`, and any required Clerk/App URL vars as **GitHub repository secrets** (Settings → Secrets and variables → Actions). The workflow uses placeholders if secrets are not set.
+
+Check out the [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
