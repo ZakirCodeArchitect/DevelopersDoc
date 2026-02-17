@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import type { 
   ProjectData, 
   DocumentData, 
@@ -506,35 +507,103 @@ export async function getAllDocsNavData(userId: string): Promise<DocsData> {
   };
 }
 
+/** Cache TTL for nav data (seconds). Nav data doesn't change often. */
+const NAV_CACHE_REVALIDATE = 30;
+
 /**
- * Helper function to check if a user has access to a document
- * Returns: { hasAccess: boolean, isOwner: boolean, isEditor: boolean, isViewer: boolean }
+ * Cached nav data for a user. Key includes userId so cache is per-user.
+ * Ownership is stored as arrays in the cache (Sets are not JSON-serializable) and
+ * converted back to Sets when returning so buildSidebarItems etc. can use .has().
  */
-async function checkDocumentAccess(documentId: string, userId: string) {
-  // Get document with project info
-  const document = await prisma.document.findUnique({
-    where: { id: documentId },
-    select: {
-      id: true,
-      userId: true,
-      projectId: true,
+export async function getAllDocsNavDataCached(userId: string): Promise<DocsData> {
+  const raw = await unstable_cache(
+    async () => {
+      const data = await getAllDocsNavData(userId);
+      const o = data.ownership ?? {
+        ownedProjectIds: new Set<string>(),
+        ownedDocIds: new Set<string>(),
+        ownedProjectDocumentIds: new Set<string>(),
+      };
+      return {
+        projects: data.projects,
+        yourDocs: data.yourDocs,
+        ownership: {
+          ownedProjectIds: Array.from(o.ownedProjectIds),
+          ownedDocIds: Array.from(o.ownedDocIds),
+          ownedProjectDocumentIds: Array.from(o.ownedProjectDocumentIds),
+        },
+      };
     },
-  });
+    ['nav-data', userId],
+    { revalidate: NAV_CACHE_REVALIDATE, tags: ['nav-data'] }
+  )();
+  const o = raw.ownership ?? {
+    ownedProjectIds: [] as string[],
+    ownedDocIds: [] as string[],
+    ownedProjectDocumentIds: [] as string[],
+  };
+  return {
+    projects: raw.projects,
+    yourDocs: raw.yourDocs,
+    ownership: {
+      ownedProjectIds: new Set(o.ownedProjectIds),
+      ownedDocIds: new Set(o.ownedDocIds),
+      ownedProjectDocumentIds: new Set(o.ownedProjectDocumentIds),
+    },
+  };
+}
+
+/**
+ * Cached published docs nav (same for all users). Returns serializable publishSlugs
+ * (Record) so unstable_cache can persist it. Convert to Map at call site if needed.
+ */
+export function getAllPublishedDocsNavCached(): Promise<{
+  documents: YourDocData[];
+  publishSlugs: Record<string, string>;
+}> {
+  return unstable_cache(
+    async () => {
+      const result = await getAllPublishedDocsNav();
+      return {
+        documents: result.documents,
+        publishSlugs: Object.fromEntries(result.publishSlugs),
+      };
+    },
+    ['published-nav-data'],
+    { revalidate: NAV_CACHE_REVALIDATE, tags: ['published-nav-data'] }
+  )();
+}
+
+/** Minimal document fields needed for access check. Pass to avoid an extra DB round-trip. */
+type DocumentForAccess = { id: string; userId: string; projectId: string | null };
+
+/**
+ * Check if a user has access to a document.
+ * Returns: { hasAccess, isOwner, isEditor, isViewer }.
+ * When documentInfo is provided (e.g. from an already-fetched page.document), skips the document findUnique (saves 1 round-trip).
+ */
+async function checkDocumentAccess(
+  documentIdOrInfo: string | DocumentForAccess,
+  userId: string
+): Promise<{ hasAccess: boolean; isOwner: boolean; isEditor: boolean; isViewer: boolean }> {
+  let document: DocumentForAccess | null =
+    typeof documentIdOrInfo === 'string'
+      ? await prisma.document.findUnique({
+          where: { id: documentIdOrInfo },
+          select: { id: true, userId: true, projectId: true },
+        })
+      : documentIdOrInfo;
 
   if (!document) {
     return { hasAccess: false, isOwner: false, isEditor: false, isViewer: false };
   }
 
-  // Check if user is the document owner
   const isDocumentOwner = document.userId === userId;
   if (isDocumentOwner) {
     return { hasAccess: true, isOwner: true, isEditor: true, isViewer: false };
   }
 
-  // Optimize: Check document share and project access in parallel if projectId exists
-  // Use select to fetch only the role field we need
   if (document.projectId) {
-    // Check both document share and project access in parallel
     const [directShare, project, projectShare] = await Promise.all([
       prisma.share.findFirst({
         where: {
@@ -542,7 +611,7 @@ async function checkDocumentAccess(documentId: string, userId: string) {
           sharedWith: userId,
           status: 'accepted',
         },
-        select: { role: true }, // Only fetch role field
+        select: { role: true },
       }),
       prisma.project.findUnique({
         where: { id: document.projectId },
@@ -554,11 +623,10 @@ async function checkDocumentAccess(documentId: string, userId: string) {
           sharedWith: userId,
           status: 'accepted',
         },
-        select: { role: true }, // Only fetch role field
+        select: { role: true },
       }),
     ]);
 
-    // Check direct share first
     if (directShare) {
       return {
         hasAccess: true,
@@ -567,13 +635,9 @@ async function checkDocumentAccess(documentId: string, userId: string) {
         isViewer: directShare.role === 'viewer',
       };
     }
-
-    // Check project owner
     if (project && project.userId === userId) {
       return { hasAccess: true, isOwner: false, isEditor: true, isViewer: false };
     }
-
-    // Check project share
     if (projectShare) {
       return {
         hasAccess: true,
@@ -583,16 +647,14 @@ async function checkDocumentAccess(documentId: string, userId: string) {
       };
     }
   } else {
-    // No project, only check direct share
     const directShare = await prisma.share.findFirst({
       where: {
         documentId: document.id,
         sharedWith: userId,
         status: 'accepted',
       },
-      select: { role: true }, // Only fetch role field
+      select: { role: true },
     });
-
     if (directShare) {
       return {
         hasAccess: true,
@@ -609,9 +671,14 @@ async function checkDocumentAccess(documentId: string, userId: string) {
 /**
  * CONTENT: Get a single page with sections (for the currently viewed page).
  * Also verifies that the page belongs to a document the user has access to.
+ * Uses React cache() for per-request dedupe.
  */
 export const getPageWithSections = cache(async (pageId: string, userId: string): Promise<DocumentPage | null> => {
-  // Optimize: Use select to fetch only needed fields
+  return getPageWithSectionsUncached(pageId, userId);
+});
+
+/** Uncached implementation; used by cached wrapper. */
+async function getPageWithSectionsUncached(pageId: string, userId: string): Promise<DocumentPage | null> {
   const page = await prisma.page.findUnique({
     where: { id: pageId },
     select: {
@@ -622,6 +689,7 @@ export const getPageWithSections = cache(async (pageId: string, userId: string):
         select: {
           id: true,
           userId: true,
+          projectId: true,
         },
       },
       sections: {
@@ -639,12 +707,9 @@ export const getPageWithSections = cache(async (pageId: string, userId: string):
 
   if (!page) return null;
 
-  // Check if user has access to the document (directly or through project)
-  const { hasAccess } = await checkDocumentAccess(page.document.id, userId);
-  
-  if (!hasAccess) {
-    return null;
-  }
+  // Pass document so we skip an extra document findUnique (saves 1 round-trip)
+  const { hasAccess } = await checkDocumentAccess(page.document, userId);
+  if (!hasAccess) return null;
 
   return {
     id: page.id,
@@ -658,7 +723,22 @@ export const getPageWithSections = cache(async (pageId: string, userId: string):
       componentType: section.componentType || undefined,
     })),
   };
-});
+}
+
+/** Cache TTL for page content (seconds). Revalidate on edit via revalidateTag('page'). */
+const PAGE_CACHE_REVALIDATE = 60;
+
+/**
+ * Cached page content. Use for doc viewer so repeat navigations avoid DB.
+ * Tag 'page' so you can revalidateTag('page') after saving edits.
+ */
+export function getPageWithSectionsCached(pageId: string, userId: string): Promise<DocumentPage | null> {
+  return unstable_cache(
+    () => getPageWithSectionsUncached(pageId, userId),
+    ['page-content', pageId, userId],
+    { revalidate: PAGE_CACHE_REVALIDATE, tags: ['page', `page-${pageId}`] }
+  )();
+}
 
 /**
  * Create a new project for a specific user

@@ -24,6 +24,7 @@ model Project {
   documents   Document[]
   shares      Share[]
 
+  @@index([userId])
   @@map("projects")
 }
 
@@ -81,6 +82,7 @@ model Section {
   pageId      String
   page        Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
 
+  @@index([pageId])
   @@map("sections")
 }
 
@@ -97,6 +99,7 @@ model User {
   documents     Document[]
   sharedWithMe  Share[]   @relation("SharedWithUser")
 
+  @@index([email])
   @@map("users")
 }
 

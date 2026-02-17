@@ -503,6 +503,17 @@ export function processYourDocs(yourDocs: YourDocData[]): ProcessedYourDoc[] {
   });
 }
 
+/** Normalize ownership IDs to a Set (handles cache-serialized arrays or plain objects). */
+function toOwnershipSet(
+  value: Set<string> | string[] | Record<string, unknown> | undefined
+): Set<string> {
+  if (value == null) return new Set();
+  if (value instanceof Set) return value;
+  if (Array.isArray(value)) return new Set(value);
+  if (typeof value === 'object') return new Set(Object.keys(value));
+  return new Set();
+}
+
 /**
  * Build sidebar navigation items from processed data
  */
@@ -511,11 +522,15 @@ export function buildSidebarItems(
   yourDocs: ProcessedYourDoc[],
   publishedDocs?: ProcessedYourDoc[],
   ownership?: {
-    ownedProjectIds: Set<string>;
-    ownedDocIds: Set<string>;
-    ownedProjectDocumentIds: Set<string>;
+    ownedProjectIds?: Set<string> | string[];
+    ownedDocIds?: Set<string> | string[];
+    ownedProjectDocumentIds?: Set<string> | string[];
   }
 ): NavItem[] {
+  const ownedProjectIds = toOwnershipSet(ownership?.ownedProjectIds);
+  const ownedDocIds = toOwnershipSet(ownership?.ownedDocIds);
+  const ownedProjectDocumentIds = toOwnershipSet(ownership?.ownedProjectDocumentIds);
+
   const navItems: NavItem[] = [
     {
       label: 'Dashboard',
@@ -523,7 +538,6 @@ export function buildSidebarItems(
     },
   ];
 
-  // Add Published Docs section above Projects (if any published docs exist)
   if (publishedDocs && publishedDocs.length > 0) {
     navItems.push({
       label: 'Published Docs',
@@ -531,25 +545,22 @@ export function buildSidebarItems(
       children: publishedDocs.map((doc) => ({
         label: doc.label,
         href: doc.href,
-        isOwner: false, // Published docs are always view-only
+        isOwner: false,
       })),
     });
   }
 
-  // Add Projects section
   navItems.push({
     label: 'Projects',
     href: '#',
     children: projects.map((project) => {
-      const isOwner = ownership?.ownedProjectIds.has(project.id) ?? false;
-      
+      const isOwner = ownedProjectIds.has(project.id);
       return {
         label: project.label,
         href: project.href,
         isOwner,
         children: project.documents.map((doc) => {
-          const isDocOwner = ownership?.ownedProjectDocumentIds.has(doc.id) ?? false;
-          
+          const isDocOwner = ownedProjectDocumentIds.has(doc.id);
           return {
             label: doc.label,
             href: doc.href,
@@ -560,13 +571,11 @@ export function buildSidebarItems(
     }),
   });
 
-  // Add Your Docs section
   navItems.push({
     label: 'Your Docs',
     href: '#',
     children: yourDocs.map((doc) => {
-      const isOwner = ownership?.ownedDocIds.has(doc.id) ?? false;
-      
+      const isOwner = ownedDocIds.has(doc.id);
       return {
         label: doc.label,
         href: doc.href,

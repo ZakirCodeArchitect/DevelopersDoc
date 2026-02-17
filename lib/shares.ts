@@ -235,6 +235,7 @@ export async function getSharedDocuments(userId: string) {
           title: true,
           description: true,
           lastUpdated: true,
+          projectId: true,
           pages: {
             orderBy: { pageNumber: 'asc' },
             select: {

@@ -5,7 +5,7 @@ import {
   buildSidebarItems,
   type ProcessedYourDoc,
 } from '@/lib/docs';
-import { getAllDocsNavData, getAllPublishedDocsNav } from '@/lib/db';
+import { getAllDocsNavDataCached, getAllPublishedDocsNavCached } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
 import { DocsLayoutClient } from '@/components/docs/DocsLayoutClient';
 import { redirect } from 'next/navigation';
@@ -15,24 +15,24 @@ export default async function DocsLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Get current user
+  // Get current user (cached per-request so layout + page share one call)
   const user = await getCurrentUser();
   if (!user) {
     redirect('/sign-in');
   }
 
-  // Get data for the current user
-  const data = await getAllDocsNavData(user.id);
+  // Use CACHED nav data so we don't run 4–6 DB queries on every navigation
+  const data = await getAllDocsNavDataCached(user.id);
   const processedProjects = processProjects(data.projects);
   const processedYourDocs = processYourDocs(data.yourDocs);
-  
-  // Get published documents
+
   let processedPublishedDocs: ProcessedYourDoc[] = [];
   try {
-    const publishedDocsData = await getAllPublishedDocsNav();
+    const publishedDocsData = await getAllPublishedDocsNavCached();
+    const publishSlugsMap = new Map(Object.entries(publishedDocsData.publishSlugs));
     processedPublishedDocs = processPublishedDocs(
       publishedDocsData.documents,
-      publishedDocsData.publishSlugs
+      publishSlugsMap
     );
   } catch (error) {
     // If published docs can't be fetched (e.g., schema not migrated), just continue without them

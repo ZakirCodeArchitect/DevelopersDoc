@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { prisma } from './db';
 import { currentUser } from '@clerk/nextjs/server';
 import { acceptPendingShares } from './shares';
@@ -104,28 +105,28 @@ export async function syncCurrentUser() {
 }
 
 /**
- * Get the current authenticated user from the database
- * Syncs the user if they don't exist yet
+ * Get the current authenticated user from the database.
+ * Syncs the user if they don't exist yet.
+ * Wrapped in React cache() so layout + page (and multiple callers in one request) share one DB round-trip.
  */
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   try {
     const clerkUser = await currentUser();
     if (!clerkUser) {
       return null;
     }
 
-    // Try to get user from database
     let user = await getUserByClerkId(clerkUser.id);
-    
-    // If user doesn't exist, sync them
     if (!user) {
       user = await syncCurrentUser();
     }
 
     return user;
   } catch (error) {
-    console.error('Error getting current user:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error getting current user:', error);
+    }
     return null;
   }
-}
+});
 

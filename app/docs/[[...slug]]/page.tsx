@@ -11,34 +11,13 @@ import {
   type YourDocData,
 } from '@/lib/docs';
 import type { NavLink } from '@/components/docs/DocNavigation';
-import { getAllDocsNavData, getAllPublishedDocsNav, getPageWithSections } from '@/lib/db';
+import { getAllDocsNavDataCached, getAllPublishedDocsNavCached, getPageWithSectionsCached } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
 import { DocsPageContent } from '@/components/docs/DocsPageContent';
 import { DocsLandingPage } from '@/components/docs/DocsLandingPage';
 import { redirect } from 'next/navigation';
 import { cache } from 'react';
-import { unstable_cache } from 'next/cache';
 import { prisma } from '@/lib/db';
-
-// CRITICAL: Define cached functions OUTSIDE the component to avoid recreating them on every render
-// This ensures the cache actually works across requests
-const getAllDocsNavDataCached = unstable_cache(
-  async (userId: string) => getAllDocsNavData(userId),
-  ['nav-data'],
-  { 
-    revalidate: 30, // Cache for 30 seconds - navigation data doesn't change often
-    tags: ['nav-data']
-  }
-);
-
-const getAllPublishedDocsNavCached = unstable_cache(
-  async () => getAllPublishedDocsNav(),
-  ['published-nav-data'],
-  { 
-    revalidate: 30, // Cache for 30 seconds
-    tags: ['published-nav-data']
-  }
-);
 
 // Cache individual page/document queries to avoid duplicate queries
 const getPageWithDocument = cache(async (pageId: string) => {
@@ -107,29 +86,18 @@ export default async function DocsPage({ params }: DocsPageProps) {
   
   // Fetch both in parallel instead of sequentially
   let data;
-  let publishedDocsData: { documents: YourDocData[]; publishSlugs: Map<string, string> } = {
+  let publishedDocsData: { documents: YourDocData[]; publishSlugs: Record<string, string> } = {
     documents: [],
-    publishSlugs: new Map(),
+    publishSlugs: {},
   };
-  
-  // PERFORMANCE MONITORING: Track timing for each operation
-  const perfStart = performance.now();
   
   try {
     const [navDataResult, publishedResult] = await Promise.all([
-      (async () => {
-        const start = performance.now();
-        try {
-          const result = await getAllDocsNavDataCached(user.id);
-          console.log(`[PERF] getAllDocsNavData: ${(performance.now() - start).toFixed(2)}ms`);
-          return result;
-        } catch (error) {
-          console.warn(`[PERF] getAllDocsNavData failed after ${(performance.now() - start).toFixed(2)}ms:`, error);
-          throw error;
-        }
-      })().catch((error) => {
+      getAllDocsNavDataCached(user.id).catch((error) => {
         // If getAllDocsNavData fails (e.g., Share model not available), use minimal data
-        console.warn('Error fetching all docs nav data, using minimal data:', error);
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('Error fetching all docs nav data, using minimal data:', error);
+        }
         return Promise.all([
           (import('@/lib/db')).then(m => m.getAllProjectsNav(user.id)),
           (import('@/lib/db')).then(m => m.getAllYourDocsNav(user.id)),
@@ -143,24 +111,15 @@ export default async function DocsPage({ params }: DocsPageProps) {
           },
         }));
       }),
-      (async () => {
-        const start = performance.now();
-        try {
-          const result = await getAllPublishedDocsNavCached();
-          console.log(`[PERF] getAllPublishedDocsNav: ${(performance.now() - start).toFixed(2)}ms`);
-          return result;
-        } catch (error) {
-          console.error(`[PERF] getAllPublishedDocsNav failed after ${(performance.now() - start).toFixed(2)}ms:`, error);
-          return { documents: [], publishSlugs: new Map() };
-        }
-      })(),
+      getAllPublishedDocsNavCached().catch(() => ({ documents: [], publishSlugs: {} })),
     ]);
-    
+
     data = navDataResult;
     publishedDocsData = publishedResult;
-    console.log(`[PERF] Total nav data fetch: ${(performance.now() - perfStart).toFixed(2)}ms`);
   } catch (error) {
-    console.error('Critical error fetching navigation data:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Critical error fetching navigation data:', error);
+    }
     // Fallback to minimal data
     const [ownedProjects, ownedYourDocs] = await Promise.all([
       (await import('@/lib/db')).getAllProjectsNav(user.id),
@@ -179,16 +138,16 @@ export default async function DocsPage({ params }: DocsPageProps) {
   
   const processedProjects = processProjects(data.projects);
   const processedYourDocs = processYourDocs(data.yourDocs);
+  const publishSlugsMap = new Map(Object.entries(publishedDocsData.publishSlugs));
   const processedPublishedDocs = processPublishedDocs(
     publishedDocsData.documents,
-    publishedDocsData.publishSlugs
+    publishSlugsMap
   );
 
   // Find the current page (including published docs)
   let currentPage = findDocumentByPath(currentPath, processedProjects, processedYourDocs, processedPublishedDocs);
   
-  // Debug logging
-  if (isPublishedRoute) {
+  if (process.env.NODE_ENV === 'development' && isPublishedRoute) {
     console.log('[DEBUG] Published route:', {
       currentPath,
       foundPage: !!currentPage,
@@ -482,20 +441,21 @@ export default async function DocsPage({ params }: DocsPageProps) {
         
         fullPage = await getPublishedPageCached(currentPage.id);
       } else {
-        fullPage = await getPageWithSections(currentPage.id, user.id);
+        fullPage = await getPageWithSectionsCached(currentPage.id, user.id);
       }
     } else {
       // If published page already has sections (from fallback), use it as-is
       fullPage = currentPage as ProcessedPage;
     }
       
-    // If page sections cannot be fetched (page doesn't exist or no access), redirect to /docs
     if (!fullPage) {
-      console.error('[DEBUG] fullPage is null, redirecting:', { 
-        currentPageId: currentPage?.id,
-        isPublishedRoute,
-        shouldFetchSections 
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[DEBUG] fullPage is null, redirecting:', {
+          currentPageId: currentPage?.id,
+          isPublishedRoute,
+          shouldFetchSections,
+        });
+      }
       redirect('/docs');
     }
     
@@ -506,11 +466,10 @@ export default async function DocsPage({ params }: DocsPageProps) {
     if (fullPage) {
       // Check if fullPage is already a ProcessedPage (has href, toc, navigation)
       if (isPage(fullPage) && 'href' in fullPage && 'toc' in fullPage) {
-        // fullPage is already a ProcessedPage (from fallback logic)
         currentPage = fullPage as ProcessedPage;
-        console.log('[DEBUG] Using fullPage as ProcessedPage:', { 
-          hasSections: currentPage.sections?.length || 0 
-        });
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[DEBUG] Using fullPage as ProcessedPage:', { hasSections: currentPage.sections?.length || 0 });
+        }
       } else {
         // fullPage is the fetched page data object
         const toc = (fullPage.sections || []).map((section: any) => ({
@@ -525,9 +484,9 @@ export default async function DocsPage({ params }: DocsPageProps) {
           sections: fullPage.sections,
           toc,
         } satisfies ProcessedPage;
-        console.log('[DEBUG] Updated currentPage with fetched sections:', { 
-          sectionsCount: currentPage.sections?.length || 0 
-        });
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[DEBUG] Updated currentPage with fetched sections:', { sectionsCount: currentPage.sections?.length || 0 });
+        }
       }
       
       // Only check edit permissions if not a published doc
@@ -563,13 +522,9 @@ export default async function DocsPage({ params }: DocsPageProps) {
           }
         }
         
-        // Debug: Log what we found
-        console.log('[DEBUG] Permission check:', { 
-          hasDocId: !!docId, 
-          hasOwnership: !!ownership, 
-          hasCurrentPage: !!currentPage,
-          pageId: currentPage?.id 
-        });
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[DEBUG] Permission check:', { hasDocId: !!docId, hasOwnership: !!ownership, hasCurrentPage: !!currentPage, pageId: currentPage?.id });
+        }
         
         // If we found the doc in nav data, check ownership immediately (no DB query needed)
         // Note: unstable_cache serializes Sets to arrays, so we need to convert back
@@ -597,14 +552,9 @@ export default async function DocsPage({ params }: DocsPageProps) {
           const isProjectOwned = projectId ? ownedProjectIds.has(projectId) : false;
           const isProjectDocOwned = ownedProjectDocumentIds.has(docId);
           
-          console.log('[DEBUG] Ownership check:', { 
-            isDocOwned, 
-            isProjectOwned, 
-            isProjectDocOwned,
-            docId,
-            projectId
-          });
-          
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[DEBUG] Ownership check:', { isDocOwned, isProjectOwned, isProjectDocOwned, docId, projectId });
+          }
           if (isDocOwned || isProjectOwned || isProjectDocOwned) {
             canEdit = true;
             isOwner = isDocOwned || (projectId ? ownedProjectIds.has(projectId) : false);
@@ -680,24 +630,18 @@ export default async function DocsPage({ params }: DocsPageProps) {
     }
   }
 
-  // Final debug check before rendering
-  if (isPublishedRoute) {
-    console.log('[DEBUG] Before render:', {
-      currentPath,
-      hasCurrentPage: !!currentPage,
-      isPage: currentPage ? isPage(currentPage) : false,
-      sectionsCount: currentPage && isPage(currentPage) ? (currentPage.sections?.length || 0) : 0,
-      currentPageId: currentPage && isPage(currentPage) ? currentPage.id : null,
-    });
+  if (process.env.NODE_ENV === 'development') {
+    if (isPublishedRoute) {
+      console.log('[DEBUG] Before render:', {
+        currentPath,
+        hasCurrentPage: !!currentPage,
+        isPage: currentPage ? isPage(currentPage) : false,
+        sectionsCount: currentPage && isPage(currentPage) ? (currentPage.sections?.length || 0) : 0,
+        currentPageId: currentPage && isPage(currentPage) ? currentPage.id : null,
+      });
+    }
+    console.log('[DEBUG] Final render props:', { canEdit, isOwner, isPublishedRoute, hasCurrentPage: !!currentPage });
   }
-
-  // Debug: Log final values before rendering
-  console.log('[DEBUG] Final render props:', { 
-    canEdit, 
-    isOwner, 
-    isPublishedRoute,
-    hasCurrentPage: !!currentPage 
-  });
 
   return (
     <DocsPageContent
