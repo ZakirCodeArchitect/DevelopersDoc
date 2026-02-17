@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { shareProject, getProjectShares, removeShare } from '@/lib/shares';
-import { getCurrentUser, getUserByEmail } from '@/lib/users';
+import { getCurrentUser } from '@/lib/users';
 import { prisma } from '@/lib/db';
 import { sendShareInvitationEmail } from '@/lib/email';
 
@@ -63,10 +63,6 @@ export async function POST(
       },
     });
     const isEditor = !!userShare;
-
-    // Check if user is trying to manage their own access
-    const targetUser = await getUserByEmail(email.toLowerCase().trim());
-    const isManagingSelf = targetUser && targetUser.id === user.id;
 
     // Permission check:
     // - Owners can share with anyone

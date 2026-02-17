@@ -251,7 +251,7 @@ export default function DocEditor({
         underline: false, // We'll add Underline separately
       }),
       Placeholder.configure({
-        placeholder: ({ node, pos, editor }) => {
+        placeholder: ({ node, editor }) => {
           const doc = editor.state.doc;
           
           // Placeholder for H1 heading (page title) - only for the first node
@@ -623,7 +623,6 @@ export default function DocEditor({
         // Calculate available space below and above cursor
         const spaceBelow = editorRect.bottom - coords.bottom;
         const spaceAbove = coords.top - editorRect.top;
-        const menuMaxHeight = 384; // max-h-96 = 24rem = 384px
         const menuGap = 4; // Gap between cursor and menu
         const menuMinHeight = 200; // Minimum expected menu height
         

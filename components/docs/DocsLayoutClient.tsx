@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useMemo, useRef, useCallback, memo, useState } from 'react';
+import React, { useMemo, useRef, useCallback, useState } from 'react';
 import { StableSidebar } from './StableSidebar';
 import { NavItem } from './DocSidebar';
 import { Header } from '@/components/sections/Header';
 import type { ProcessedProject, ProcessedYourDoc } from '@/lib/docs';
-import { SearchModal } from './SearchModal';
 import { useCreateProject } from './CreateProjectHandler';
 import { useCreateDoc } from './CreateDocHandler';
 import { useRenameDelete } from './useRenameDelete';

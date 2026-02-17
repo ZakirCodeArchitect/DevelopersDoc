@@ -39,7 +39,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   onEditPage,
   onShare,
   onPublish,
-  projectName,
+  projectName: _projectName,
   pages,
   currentPageId,
   canEdit = true,

@@ -7,18 +7,6 @@ import { cn } from '@/lib/utils';
 import { ContextMenu } from './ContextMenu';
 import { useNavigation } from './NavigationContext';
 
-// Wrapper component to handle hover visibility
-const ContextMenuWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return (
-    <div 
-      className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 [&[data-menu-open='true']]:opacity-100"
-      style={{ pointerEvents: 'auto' }}
-    >
-      {children}
-    </div>
-  );
-};
-
 // Sync active link styles without causing DocSidebar to re-render on navigation.
 const SidebarActiveSync = ({
   navRef,

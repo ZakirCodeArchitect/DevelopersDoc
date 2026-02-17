@@ -3,8 +3,26 @@ import { updatePage } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
 import type { DocumentSection } from '@/lib/docs';
 
+// Tiptap/ProseMirror JSON node types for type-safe HTML rendering
+interface TiptapMark {
+  type: string;
+  attrs?: Record<string, unknown>;
+}
+
+interface TiptapNode {
+  type: string;
+  content?: TiptapNode[];
+  attrs?: Record<string, unknown>;
+  text?: string;
+  marks?: TiptapMark[];
+}
+
+interface TiptapJSON {
+  content?: TiptapNode[];
+}
+
 // Helper to render a Tiptap node to HTML
-function renderNodeToHTML(node: any): string {
+function renderNodeToHTML(node: TiptapNode): string {
   if (!node) return '';
 
   const escapeHTML = (text: string) => {
@@ -16,7 +34,7 @@ function renderNodeToHTML(node: any): string {
       .replace(/'/g, '&#039;');
   };
 
-  const renderMarks = (text: string, marks: any[] = []) => {
+  const renderMarks = (text: string, marks: TiptapMark[] = []) => {
     // DEBUG: Log original text
     console.log('🟡 [DEBUG renderMarks] Original text:', {
       text: JSON.stringify(text),
@@ -89,7 +107,7 @@ function renderNodeToHTML(node: any): string {
     return result;
   };
 
-  const renderContent = (content: any[] = []): string => {
+  const renderContent = (content: TiptapNode[] = []): string => {
     return content.map((child) => renderNodeToHTML(child)).join('');
   };
 
@@ -115,7 +133,7 @@ function renderNodeToHTML(node: any): string {
       const hAlign = node.attrs?.textAlign;
       const hStyle = hAlign && hAlign !== 'left' ? ` style="text-align: ${hAlign}"` : '';
       // Generate ID from heading text for TOC anchors
-      const headingText = node.content?.map((n: any) => n.text || '').join('').trim() || '';
+      const headingText = node.content?.map((n: TiptapNode) => n.text || '').join('').trim() || '';
       const headingId = headingText
         .toLowerCase()
         .trim()
@@ -143,7 +161,7 @@ function renderNodeToHTML(node: any): string {
       return `<blockquote>${renderContent(node.content)}</blockquote>`;
     
     case 'codeBlock':
-      const code = node.content?.map((n: any) => n.text || '').join('') || '';
+      const code = node.content?.map((n: TiptapNode) => n.text || '').join('') || '';
       // Escape HTML entities in code
       const escapedCode = escapeHTML(code);
       return `<pre class="bg-gray-100 rounded-md p-4 my-4"><code class="block">${escapedCode}</code></pre>`;
@@ -232,19 +250,18 @@ function renderNodeToHTML(node: any): string {
 }
 
 // Helper to convert Tiptap JSON to page sections with HTML content
-function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
-  const sections: any[] = [];
-  let currentSection: any = null;
+function convertTiptapJSONToSections(tiptapJSON: TiptapJSON, pageId: string) {
+  const sections: DocumentSection[] = [];
+  let currentSection: DocumentSection | null = null;
   let descriptionContent: string[] = [];
   let pageTitle: string = 'Untitled';
   let foundH1 = false;
-  let descriptionCreated = false;
   let isCollectingDescription = false;
 
-  tiptapJSON.content?.forEach((node: any) => {
+  tiptapJSON.content?.forEach((node: TiptapNode) => {
     // Extract H1 as page title (only the first one)
     if (node.type === 'heading' && node.attrs?.level === 1 && !foundH1) {
-      pageTitle = node.content?.map((n: any) => n.text || '').join('').trim() || 'Untitled';
+      pageTitle = node.content?.map((n: TiptapNode) => n.text || '').join('').trim() || 'Untitled';
       foundH1 = true;
       isCollectingDescription = true; // Start collecting description after H1
       return; // Skip adding H1 to content
@@ -261,7 +278,6 @@ function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
           content: descriptionContent,
         });
         descriptionContent = [];
-        descriptionCreated = true;
         isCollectingDescription = false;
       }
       
@@ -271,7 +287,7 @@ function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
       }
       
       // Treat this H1 as a section heading
-      const titleText = node.content?.map((n: any) => n.text || '').join('').trim() || '';
+      const titleText = node.content?.map((n: TiptapNode) => n.text || '').join('').trim() || '';
       const sectionId = titleText
         .toLowerCase()
         .trim()
@@ -297,7 +313,6 @@ function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
           content: descriptionContent,
         });
         descriptionContent = [];
-        descriptionCreated = true;
         isCollectingDescription = false;
       }
       
@@ -307,7 +322,7 @@ function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
       }
       
       // Start new section
-      const titleText = node.content?.map((n: any) => n.text || '').join('').trim() || '';
+      const titleText = node.content?.map((n: TiptapNode) => n.text || '').join('').trim() || '';
       const sectionId = titleText
         .toLowerCase()
         .trim()
@@ -349,7 +364,6 @@ function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
               type: 'html',
               content: descriptionContent,
             });
-            descriptionCreated = true;
             isCollectingDescription = false;
             
             // Start a new section for this content
@@ -387,7 +401,6 @@ function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
       type: 'html',
       content: descriptionContent,
     });
-    descriptionCreated = true;
   }
 
   // Save last section
@@ -409,7 +422,7 @@ function convertTiptapJSONToSections(tiptapJSON: any, pageId: string) {
 }
 
 // Helper to extract all headings (H2, H3, H4) for table of contents
-function extractHeadingsForTOC(tiptapJSON: any) {
+function extractHeadingsForTOC(tiptapJSON: TiptapJSON) {
   const headings: Array<{ id: string; label: string; level: number }> = [];
   let foundFirstH1 = false;
   const usedIds = new Set<string>();
@@ -441,9 +454,9 @@ function extractHeadingsForTOC(tiptapJSON: any) {
     return uniqueId;
   };
 
-  tiptapJSON.content?.forEach((node: any) => {
+  tiptapJSON.content?.forEach((node: TiptapNode) => {
     if (node.type === 'heading') {
-      const level = node.attrs?.level || 1;
+      const level = (node.attrs?.level as number) || 1;
       
       // Skip the first H1 (page title)
       if (level === 1 && !foundFirstH1) {
@@ -453,7 +466,7 @@ function extractHeadingsForTOC(tiptapJSON: any) {
       
       // Include H2, H3, H4 (and subsequent H1s treated as sections)
       if (level >= 2 && level <= 4) {
-        const text = node.content?.map((n: any) => n.text || '').join('').trim() || '';
+        const text = node.content?.map((n: TiptapNode) => n.text || '').join('').trim() || '';
         const id = generateUniqueId(text, level);
         
         headings.push({
@@ -465,7 +478,7 @@ function extractHeadingsForTOC(tiptapJSON: any) {
       
       // Include subsequent H1s as top-level sections in TOC
       if (level === 1 && foundFirstH1) {
-        const text = node.content?.map((n: any) => n.text || '').join('').trim() || '';
+        const text = node.content?.map((n: TiptapNode) => n.text || '').join('').trim() || '';
         const id = generateUniqueId(text, level);
         
         headings.push({
