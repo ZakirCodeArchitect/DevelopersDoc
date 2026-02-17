@@ -40,13 +40,16 @@ export const metadata: Metadata = {
   description: "Developers Doc is a platform for developers to share their knowledge and learn from each other.",
 };
 
+// Skip Clerk when key is unset or the CI placeholder so build/prerender succeeds without real keys
+const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const useClerk = clerkKey && clerkKey !== "pk_test_placeholder";
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <ClerkProvider>
+  const content = (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${openSans.variable} ${inter.variable} ${shadowsIntoLight.variable} ${sourceCodePro.variable} antialiased`}
@@ -55,6 +58,7 @@ export default function RootLayout({
         {children}
       </body>
     </html>
-    </ClerkProvider>
   );
+
+  return useClerk ? <ClerkProvider>{content}</ClerkProvider> : content;
 }
