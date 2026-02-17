@@ -40,12 +40,22 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Check required secrets (Clerk)
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder' }}
+        run: |
+          if [ "$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" = "pk_test_placeholder" ]; then
+            echo "::error::Clerk keys are required for the build. Add these in GitHub: Settings → Secrets and variables → Actions → New repository secret"
+            echo "  - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY  (from your .env)"
+            echo "  - CLERK_SECRET_KEY  (from your .env)"
+            exit 1
+          fi
+
       - name: Build
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://placeholder:placeholder@localhost:5432/placeholder' }}
           DIRECT_URL: ${{ secrets.DIRECT_URL || 'postgresql://placeholder:placeholder@localhost:5432/placeholder' }}
-          # Placeholder Clerk key is OK: app skips Clerk when key is pk_test_placeholder so prerender succeeds
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder' }}
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY || 'sk_test_placeholder' }}
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL || 'https://developers-doc-1.vercel.app' }}
         run: npx next build --webpack
