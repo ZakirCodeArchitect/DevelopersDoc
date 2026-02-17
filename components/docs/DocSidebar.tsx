@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ContextMenu } from './ContextMenu';
+import { useNavigation } from './NavigationContext';
 
 // Wrapper component to handle hover visibility
 const ContextMenuWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -99,6 +100,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   onRenameDoc,
   onDeleteDoc,
 }) => {
+  const nav = useNavigation();
   const router = useRouter();
   
   // Get initial pathname from window.location to avoid usePathname() re-renders
@@ -419,12 +421,14 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
                   toggleExpand(item.label);
                     }
                   } else {
-                    // Clicking on a different project - preserve its current state
-                    // If it's collapsed, mark it as manually collapsed so auto-expand won't expand it
+                    // Clicking on a different project - use transition so skeleton shows
                     if (!isExpanded) {
                       manuallyCollapsedRef.current.add(item.label);
                     }
-                    // Just let navigation happen - don't change expansion state
+                    if (nav && item.href.startsWith('/docs')) {
+                      e.preventDefault();
+                      nav.navigate(item.href);
+                    }
                   }
                 }}
                 className={cn(
@@ -476,15 +480,20 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
             <div className="flex-1 flex items-center gap-1 group min-w-0">
             <Link
               href={item.href}
-                prefetch={false}
+              prefetch={false}
               data-nav-href={item.href}
               onMouseEnter={() => prefetchHref(item.href)}
               onFocus={() => prefetchHref(item.href)}
+              onClick={(e) => {
+                if (nav && item.href !== '#' && item.href.startsWith('/docs')) {
+                  e.preventDefault();
+                  nav.navigate(item.href);
+                }
+              }}
               className={cn(
                 'py-1.5 pr-2 text-sm rounded-md truncate flex-1 min-w-0 flex items-center gap-2',
                 level > 1 && isProjectDocument ? 'pl-2' : 'px-2',
                 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                // Active state will be set via DOM manipulation to avoid hydration mismatch
               )}
             >
               {item.label === 'Dashboard' && (

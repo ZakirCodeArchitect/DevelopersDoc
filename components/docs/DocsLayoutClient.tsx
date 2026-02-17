@@ -9,6 +9,7 @@ import { SearchModal } from './SearchModal';
 import { useCreateProject } from './CreateProjectHandler';
 import { useCreateDoc } from './CreateDocHandler';
 import { useRenameDelete } from './useRenameDelete';
+import { NavigationProvider, DocsContentArea } from './NavigationContext';
 
 interface DocsLayoutClientProps {
   sidebarItems: NavItem[];
@@ -138,59 +139,60 @@ export function DocsLayoutClient({
   ], []);
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
-      <Header
-        logoText="Developers Doc"
-        navLinks={navLinks}
-        projects={processedProjects}
-        yourDocs={processedYourDocs}
-      />
-      <div className="flex flex-1" style={{ fontFamily: 'var(--font-lilex), monospace' }}>
-        <StableSidebar
-          items={memoizedSidebarItems}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={handleToggleCollapse}
-          {...stableHandlers}
+    <NavigationProvider>
+      <div className="flex flex-col min-h-screen bg-white">
+        <Header
+          logoText="Developers Doc"
+          navLinks={navLinks}
+          projects={processedProjects}
+          yourDocs={processedYourDocs}
         />
-        {/* Expand button when collapsed - positioned at same height as Dashboard item */}
-        {showExpandButton && isSidebarCollapsed && (
-          <button
-            type="button"
-            onClick={() => {
-              setShowExpandButton(false);
-              setIsSidebarCollapsed(false);
-            }}
-            className="fixed left-0 p-1.5 bg-white border border-gray-200 border-l-0 rounded-r-md hover:bg-gray-50 text-gray-600 hover:text-gray-900 shadow-sm z-20 flex items-center justify-center transition-opacity duration-200"
-            aria-label="Expand sidebar"
-            title="Expand sidebar"
-            style={{ 
-              top: 'calc(4rem + 1rem + 0.375rem)', // top-16 (header) + p-4 (nav padding) + py-1.5 (item top padding) to align with Dashboard item
-            }}
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        <div className="flex flex-1" style={{ fontFamily: 'var(--font-lilex), monospace' }}>
+          <StableSidebar
+            items={memoizedSidebarItems}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={handleToggleCollapse}
+            {...stableHandlers}
+          />
+          {showExpandButton && isSidebarCollapsed && (
+            <button
+              type="button"
+              onClick={() => {
+                setShowExpandButton(false);
+                setIsSidebarCollapsed(false);
+              }}
+              className="fixed left-0 p-1.5 bg-white border border-gray-200 border-l-0 rounded-r-md hover:bg-gray-50 text-gray-600 hover:text-gray-900 shadow-sm z-20 flex items-center justify-center transition-opacity duration-200"
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              style={{
+                top: 'calc(4rem + 1rem + 0.375rem)',
+              }}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </button>
-        )}
-        <div className={`flex-1 min-h-screen bg-white transition-all duration-300 ${isSidebarCollapsed ? 'ml-0 pl-10' : 'ml-64'}`}>
-          {children}
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </button>
+          )}
+          <div className={`flex-1 min-h-screen bg-white transition-all duration-300 ${isSidebarCollapsed ? 'ml-0 pl-10' : 'ml-64'}`}>
+            <DocsContentArea>{children}</DocsContentArea>
+          </div>
         </div>
+        <CreateProjectModal />
+        <CreateDocModal />
+        <RenameModalComponent />
+        <DeleteModalComponent />
       </div>
-      <CreateProjectModal />
-      <CreateDocModal />
-      <RenameModalComponent />
-      <DeleteModalComponent />
-    </div>
+    </NavigationProvider>
   );
 }
 

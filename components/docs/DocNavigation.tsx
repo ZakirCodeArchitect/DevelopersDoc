@@ -1,6 +1,9 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useNavigation } from './NavigationContext';
 
 export interface NavLink {
   label: string;
@@ -18,7 +21,7 @@ export const DocNavigation: React.FC<DocNavigationProps> = ({
   next,
   className,
 }) => {
-  // Don't render if neither previous nor next exists
+  const nav = useNavigation();
   if (!previous && !next) {
     return null;
   }
@@ -34,6 +37,12 @@ export const DocNavigation: React.FC<DocNavigationProps> = ({
         {previous ? (
           <Link
             href={previous.href}
+            onClick={(e) => {
+              if (nav && previous.href.startsWith('/docs')) {
+                e.preventDefault();
+                nav.navigate(previous.href);
+              }
+            }}
             className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex"
           >
             <svg
@@ -56,6 +65,12 @@ export const DocNavigation: React.FC<DocNavigationProps> = ({
       {next ? (
         <Link
           href={next.href}
+          onClick={(e) => {
+            if (nav && next.href.startsWith('/docs')) {
+              e.preventDefault();
+              nav.navigate(next.href);
+            }
+          }}
           className="absolute right-0 flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors inline-flex"
         >
           <span>{next.label}</span>

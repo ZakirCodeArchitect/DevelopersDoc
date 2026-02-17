@@ -1,6 +1,9 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useNavigation } from './NavigationContext';
 
 export interface TocItem {
   id: string;
@@ -39,9 +42,9 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   projectName,
   pages,
   currentPageId,
-  canEdit = true, // Default to true for backward compatibility
+  canEdit = true,
 }) => {
-  // Always show the sidebar if there are items, pages, or an add page handler
+  const nav = useNavigation();
   if (items.length === 0 && !pages?.length && !onAddPage) {
     return null;
   }
@@ -109,6 +112,12 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
                       <Link
                         key={page.id}
                         href={page.href}
+                        onClick={(e) => {
+                          if (nav && page.href.startsWith('/docs')) {
+                            e.preventDefault();
+                            nav.navigate(page.href);
+                          }
+                        }}
                         className={cn(
                           'block text-sm transition-colors py-1.5 px-2 rounded-md',
                           isActive
