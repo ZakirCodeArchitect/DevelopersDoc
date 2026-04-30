@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Open_Sans, Inter, Shadows_Into_Light, Source_Code_Pro } from "next/font/google";
+import { Geist, Geist_Mono, Open_Sans } from "next/font/google";
 import "./globals.css";
-import { FontLoader } from "@/components/FontLoader";
 import { ClerkProvider } from "@clerk/nextjs";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { SpeedInsightsGate } from "@/components/SpeedInsightsGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,22 +16,6 @@ const geistMono = Geist_Mono({
 
 const openSans = Open_Sans({
   variable: "--font-open-sans",
-  subsets: ["latin"],
-});
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const shadowsIntoLight = Shadows_Into_Light({
-  variable: "--font-shadows-into-light",
-  subsets: ["latin"],
-  weight: "400",
-});
-
-const sourceCodePro = Source_Code_Pro({
-  variable: "--font-source-code-pro",
   subsets: ["latin"],
 });
 
@@ -50,11 +33,10 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en">
         <body
-          className={`${geistSans.variable} ${geistMono.variable} ${openSans.variable} ${inter.variable} ${shadowsIntoLight.variable} ${sourceCodePro.variable} antialiased`}
+          className={`${geistSans.variable} ${geistMono.variable} ${openSans.variable} antialiased`}
         >
-          <FontLoader />
           {children}
-          <SpeedInsights />
+          <SpeedInsightsGate />
         </body>
       </html>
     </ClerkProvider>

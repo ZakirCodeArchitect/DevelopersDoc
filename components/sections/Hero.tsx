@@ -7,6 +7,8 @@ interface HeroProps {
   primaryCta?: {
     text: string;
     href: string;
+    /** Default: false for `/docs` (heavy auth + DB RSC); true for other paths. */
+    prefetch?: boolean;
   };
   secondaryCta?: {
     text: string;
@@ -14,7 +16,31 @@ interface HeroProps {
   };
 }
 
+const ctaClassName =
+  'inline-flex items-center gap-2 text-base md:text-lg text-gray-700 hover:text-gray-900 font-medium mt-6 transition-colors';
+
+const CtaChevron = () => (
+  <svg
+    className="w-4 h-4"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24"
+    aria-hidden
+  >
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M13 7l5 5m0 0l-5 5m5-5H6"
+    />
+  </svg>
+);
+
 export const Hero: React.FC<HeroProps> = ({ primaryCta }) => {
+  const ctaToDocs =
+    primaryCta &&
+    (primaryCta.href === '/docs' || primaryCta.href.startsWith('/docs/'));
+
   return (
     <section className="py-12 md:py-20 lg:py-24 relative overflow-hidden bg-gray-50">
       {/* Background Clouds */}
@@ -58,27 +84,22 @@ export const Hero: React.FC<HeroProps> = ({ primaryCta }) => {
                 </svg>
               </span>
             </h1>
-            {primaryCta && (
-              <Link 
-                href={primaryCta.href}
-                className="inline-flex items-center gap-2 text-base md:text-lg text-gray-700 hover:text-gray-900 font-medium mt-6 transition-colors"
-              >
-                {primaryCta.text}
-                <svg 
-                  className="w-4 h-4" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
+            {primaryCta &&
+              (ctaToDocs ? (
+                <a href={primaryCta.href} className={ctaClassName}>
+                  {primaryCta.text}
+                  <CtaChevron />
+                </a>
+              ) : (
+                <Link
+                  href={primaryCta.href}
+                  prefetch={primaryCta.prefetch ?? true}
+                  className={ctaClassName}
                 >
-                  <path 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    strokeWidth={2} 
-                    d="M13 7l5 5m0 0l-5 5m5-5H6" 
-                  />
-                </svg>
-              </Link>
-            )}
+                  {primaryCta.text}
+                  <CtaChevron />
+                </Link>
+              ))}
           </div>
 
           {/* Right Side - Laptop with Document Editor */}

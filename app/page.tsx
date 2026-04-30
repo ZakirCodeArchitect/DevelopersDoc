@@ -4,6 +4,9 @@ import { Features } from '@/components/sections/Features';
 import { DeveloperSection } from '@/components/sections/DeveloperSection';
 import { Footer } from '@/components/sections/Footer';
 
+/** Prerender marketing shell at build time where possible (faster TTFB on Vercel edge). */
+export const dynamic = 'force-static';
+
 export default function Home() {
   // Navigation links for header
   const navLinks = [

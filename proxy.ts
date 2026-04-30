@@ -1,14 +1,26 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-// Define which routes should be public (accessible without authentication)
+/** Public HTML routes (also excluded from matcher — no edge auth work). */
 const isPublicRoute = createRouteMatcher([
   '/',
   '/sign-in(.*)',
   '/sign-up(.*)',
 ]);
 
+/**
+ * Public API routes must skip auth.protect() so webhooks and published feeds work.
+ * All other /api/* requests still run through middleware and require a session.
+ */
+const isPublicApiRoute = createRouteMatcher([
+  '/api/webhooks(.*)',
+  '/api/published(.*)',
+]);
+
 export default clerkMiddleware(async (auth, req) => {
-  // Protect routes that are not public
+  const pathname = req.nextUrl.pathname;
+  if (pathname.startsWith('/api/') && isPublicApiRoute(req)) {
+    return;
+  }
   if (!isPublicRoute(req)) {
     await auth.protect();
   }
@@ -16,9 +28,8 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-    // Always run for API routes
-    '/(api|trpc)(.*)',
+    // Docs app + APIs only — skips `/`, auth pages, redirects, and static assets
+    '/docs/:path*',
+    '/api/:path*',
   ],
 };
