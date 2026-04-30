@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { updatePage } from '@/lib/db';
+import { getPageWithSections, updatePage } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
 import type { DocumentSection } from '@/lib/docs';
 import { revalidateDocsNavData, revalidatePageCaches } from '@/lib/revalidate-docs-cache';
@@ -573,6 +573,29 @@ export async function PATCH(
       { error: `Failed to update page: ${errorMessage}` },
       { status: 500 }
     );
+  }
+}
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string; pageId: string }> }
+) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const resolvedParams = await params;
+    const page = await getPageWithSections(resolvedParams.pageId, user.id);
+    if (!page) {
+      return NextResponse.json({ error: 'Page not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, page });
+  } catch (error) {
+    console.error('Error fetching page for export:', error);
+    return NextResponse.json({ error: 'Failed to fetch page' }, { status: 500 });
   }
 }
 

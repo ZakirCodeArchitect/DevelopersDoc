@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { useNavigation } from './NavigationContext';
 
@@ -26,6 +27,7 @@ interface DocTableOfContentsProps {
   onEditPage?: () => void;
   onShare?: () => void;
   onPublish?: () => void;
+  onExport?: (fileType: 'word' | 'pdf') => Promise<void> | void;
   projectName?: string;
   pages?: PageLink[];
   currentPageId?: string;
@@ -40,6 +42,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   onEditPage,
   onShare,
   onPublish,
+  onExport,
   projectName: _projectName,
   pages,
   currentPageId,
@@ -48,6 +51,9 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   const nav = useNavigation();
   const router = useRouter();
   const [isActionsCollapsed, setIsActionsCollapsed] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const prefetchedRef = useRef<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const hoverScrollRafRef = useRef<number | null>(null);
@@ -106,10 +112,25 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   };
 
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
     return () => {
       stopHoverScroll();
     };
   }, []);
+
+  const handleExport = async (fileType: 'word' | 'pdf') => {
+    if (!onExport) return;
+    setIsExporting(true);
+    try {
+      await onExport(fileType);
+      setIsExportModalOpen(false);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <aside
@@ -316,10 +337,95 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
                 Publish
               </button>
             )}
+            {onExport && (
+              <button
+                onClick={() => setIsExportModalOpen(true)}
+                className="w-full text-sm text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 border border-gray-200 hover:border-gray-300"
+                title="Export this document"
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 16v-8m0 8l-3-3m3 3l3-3M4 20h16"
+                  />
+                </svg>
+                Export
+              </button>
+            )}
             </div>
           </div>
         </div>
       </div>
+      {isMounted && isExportModalOpen && createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1.5px]"
+          onClick={() => {
+            if (!isExporting) setIsExportModalOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-xl rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
+            style={{ fontFamily: 'var(--font-lilex), monospace' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-slate-900">Export Document</h3>
+                <p className="mt-1 text-sm text-slate-600">Select the format to download this document.</p>
+              </div>
+              <button
+                onClick={() => setIsExportModalOpen(false)}
+                disabled={isExporting}
+                className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="Close export modal"
+                title="Close"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button
+                onClick={() => handleExport('word')}
+                disabled={isExporting}
+                className="group rounded-md border border-slate-200 bg-white px-4 py-3 text-left transition-all hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <svg className="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 12h10M7 17h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+                  </svg>
+                  Export as Word
+                </span>
+                <span className="mt-1 block text-xs text-slate-500">Best for editing and sharing</span>
+              </button>
+
+              <button
+                onClick={() => handleExport('pdf')}
+                disabled={isExporting}
+                className="group rounded-md border border-slate-200 bg-white px-4 py-3 text-left transition-all hover:border-orange-300 hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                  <svg className="h-4 w-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 12h10M7 17h6M6 3h9l5 5v13a1 1 0 01-1 1H6a1 1 0 01-1-1V4a1 1 0 011-1z" />
+                  </svg>
+                  Export as PDF
+                </span>
+                <span className="mt-1 block text-xs text-slate-500">Best for fixed layout and printing</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        window.document.body
+      )}
     </aside>
   );
 };

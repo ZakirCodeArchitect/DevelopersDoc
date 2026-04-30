@@ -936,6 +936,15 @@ ul[data-type="taskList"] li[data-type="taskItem"] > label > span,
   pointer-events: auto;
 }
 
+/* Keep html2pdf internal containers off-screen but renderable */
+.html2pdf__container {
+  position: fixed !important;
+  left: -100000px !important;
+  top: 0 !important;
+  z-index: -1 !important;
+  pointer-events: none !important;
+}
+
 /* Table styles in prose (view mode) */
 .prose table {
   border-collapse: collapse !important;

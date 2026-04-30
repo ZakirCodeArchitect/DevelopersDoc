@@ -40,6 +40,119 @@ const PublishModal = dynamic(
   { ssr: false }
 );
 
+type ExportFileType = 'word' | 'pdf';
+type ExportPagePayload = Pick<ProcessedPage, 'id' | 'title' | 'sections'>;
+
+const sanitizeFileName = (name: string) => {
+  const trimmed = (name || 'document').trim();
+  return trimmed.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').replace(/\s+/g, ' ').slice(0, 120) || 'document';
+};
+
+const buildSectionHtml = (section: { title?: string; type: string; content?: string[] }) => {
+  let contentHtml = '';
+  if (section.type === 'html' && Array.isArray(section.content)) {
+    contentHtml = section.content.join('');
+  } else if (section.type === 'text' && Array.isArray(section.content)) {
+    contentHtml = section.content.map((paragraph) => `<p>${paragraph}</p>`).join('');
+  }
+
+  const heading = section.title ? `<h2>${section.title}</h2>` : '';
+  return `<section class="export-section">${heading}${contentHtml}</section>`;
+};
+
+const buildExportHtml = (_documentTitle: string, pages: ExportPagePayload[]) => {
+  const pagesHtml = pages
+    .map((page, index) => {
+      const sectionsHtml = page.sections.map((section) => buildSectionHtml(section)).join('');
+      const pageBreakClass = index < pages.length - 1 ? ' export-page-break' : '';
+      return `
+        <article class="export-page${pageBreakClass}">
+          <h1 class="page-title">${page.title || 'Untitled page'}</h1>
+          ${sectionsHtml}
+        </article>
+      `;
+    })
+    .join('');
+
+  return `
+  <style>
+    @page { size: A4; margin: 20mm 16mm; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #111827;
+      line-height: 1.6;
+      font-size: 14px;
+      margin: 0;
+      padding: 0;
+    }
+    .export-page { page-break-after: auto; break-after: auto; }
+    .export-page.export-page-break { page-break-after: always; break-after: page; }
+    .export-section table,
+    .export-section pre,
+    .export-section img,
+    .export-section blockquote {
+      page-break-inside: avoid;
+      break-inside: avoid-page;
+    }
+
+    .export-section h2,
+    .export-section h3,
+    .export-section h4 {
+      page-break-after: avoid;
+      break-after: avoid-page;
+    }
+    .page-title {
+      font-size: 30px;
+      line-height: 1.2;
+      margin: 0 0 12px;
+      font-weight: 700;
+      color: #111827;
+    }
+    h2 {
+      font-size: 24px;
+      margin: 24px 0 10px;
+      font-weight: 700;
+      color: #111827;
+    }
+    h3 { font-size: 20px; margin: 18px 0 8px; font-weight: 600; }
+    h4 { font-size: 18px; margin: 16px 0 6px; font-weight: 600; }
+    p { margin: 0 0 10px; color: #374151; }
+    ul, ol { margin: 12px 0; padding-left: 24px; }
+    li { margin: 6px 0; }
+    a { color: #2563eb; text-decoration: underline; }
+    pre {
+      background: #f3f4f6;
+      border-radius: 6px;
+      padding: 12px;
+      overflow-x: auto;
+      white-space: pre;
+      font-size: 13px;
+    }
+    code {
+      background: #f3f4f6;
+      border-radius: 4px;
+      padding: 2px 5px;
+      font-size: 13px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 12px 0;
+    }
+    th, td {
+      border: 1px solid #d1d5db;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    th { background: #f3f4f6; font-weight: 600; }
+    img { max-width: 100%; height: auto; border-radius: 8px; }
+    hr { border: 0; border-top: 1px solid #e5e7eb; margin: 18px 0; }
+  </style>
+  <div class="export-root">
+    ${pagesHtml}
+  </div>`;
+};
+
 // Helper function to convert page sections to HTML (for Tiptap)
 const convertPageToHTML = (page: ProcessedPage) => {
   let html = '';
@@ -177,7 +290,7 @@ const DocsPageContentComponent = ({
     setPublishDocumentName(documentName);
     setPublishModalOpen(true);
   };
-  
+
   // Use transition to handle navigation smoothly
   const [displayContent, setDisplayContent] = useState<{
     path: string;
@@ -846,6 +959,97 @@ const DocsPageContentComponent = ({
   if (isPageView && page && document) {
     // Hide title if page is empty and title is "Untitled page"
     const shouldHideTitle = isEditing || (isPageEmpty && (page.title === 'Untitled page' || !page.title));
+    const handleExportDocument = async (fileType: ExportFileType) => {
+      if (!document.pages || document.pages.length === 0) {
+        return;
+      }
+
+      const fileBaseName = sanitizeFileName(document.title);
+      const pagesForExport: ExportPagePayload[] = await Promise.all(
+        document.pages.map(async (pageMeta) => {
+          try {
+            const response = await fetch(`/api/docs/${document.id}/pages/${pageMeta.id}`);
+            if (!response.ok) {
+              return pageMeta;
+            }
+            const data = await response.json();
+            if (data?.page) {
+              return {
+                id: data.page.id,
+                title: data.page.title,
+                sections: data.page.sections || [],
+              } as ExportPagePayload;
+            }
+          } catch {
+            // Fallback to already available page data
+          }
+          return pageMeta;
+        })
+      );
+      const exportHtml = buildExportHtml(document.title, pagesForExport);
+
+      if (fileType === 'word') {
+        const blob = new Blob(['\ufeff', exportHtml], { type: 'application/msword;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const anchor = window.document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${fileBaseName}.doc`;
+        window.document.body.appendChild(anchor);
+        anchor.click();
+        window.document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      const html2pdfModule = await import('html2pdf.js');
+      const html2pdf = (html2pdfModule as any).default ?? (html2pdfModule as any);
+
+      const printableNode = window.document.createElement('div');
+      printableNode.style.position = 'fixed';
+      printableNode.style.left = '-100000px';
+      printableNode.style.top = '0';
+      printableNode.style.width = '210mm';
+      printableNode.style.background = '#ffffff';
+      printableNode.style.pointerEvents = 'none';
+      printableNode.style.zIndex = '-1';
+      printableNode.innerHTML = exportHtml;
+      window.document.body.appendChild(printableNode);
+
+      try {
+        const exportRoot = printableNode.querySelector('.export-root') as HTMLElement | null;
+        if (!exportRoot) return;
+
+        await html2pdf()
+          .set({
+            margin: [10, 10, 10, 10],
+            filename: `${fileBaseName}.pdf`,
+            image: { type: 'png', quality: 1 },
+            html2canvas: {
+              scale: Math.max(3, (window.devicePixelRatio || 1) * 2),
+              useCORS: true,
+              backgroundColor: '#ffffff',
+              letterRendering: true,
+              onclone: (clonedDoc: Document) => {
+                const allElements = clonedDoc.querySelectorAll('*');
+                allElements.forEach((el) => {
+                  const element = el as HTMLElement;
+                  const style = clonedDoc.defaultView?.getComputedStyle(element);
+                  if (style?.position === 'fixed' || style?.position === 'sticky') {
+                    element.style.display = 'none';
+                  }
+                });
+              },
+              removeContainer: true,
+            },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait', compress: false, precision: 16 },
+            pagebreak: { mode: ['css'], avoid: ['table', 'pre', 'img', 'blockquote'] },
+          })
+          .from(exportRoot)
+          .save();
+      } finally {
+        window.document.body.removeChild(printableNode);
+      }
+    };
     
     return (
       <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]">
@@ -989,6 +1193,7 @@ const DocsPageContentComponent = ({
           onEditPage={() => setIsEditing(true)}
           onShare={currentPath.startsWith('/docs/published') ? undefined : () => handleShareDocument(document.id, document.title)}
           onPublish={isOwner ? () => handlePublishDocument(document.id, document.title) : undefined}
+          onExport={handleExportDocument}
           projectName={projectName}
           pages={optimisticPages || (document ? document.pages.map(p => ({
             id: p.id,
