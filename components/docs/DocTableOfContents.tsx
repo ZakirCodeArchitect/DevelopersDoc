@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -47,6 +47,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
 }) => {
   const nav = useNavigation();
   const router = useRouter();
+  const [isActionsCollapsed, setIsActionsCollapsed] = useState(false);
   const prefetchedRef = useRef<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const hoverScrollRafRef = useRef<number | null>(null);
@@ -196,15 +197,18 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
         <div className="relative mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
           <button
             type="button"
-            onClick={scrollSidebarToBottom}
+            onClick={() => setIsActionsCollapsed((prev) => !prev)}
             onMouseEnter={startHoverScrollDown}
             onMouseLeave={stopHoverScroll}
             className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rounded-full border border-gray-200 bg-white p-1.5 text-gray-500 shadow-sm transition-all duration-200 hover:text-gray-700"
-            aria-label="Scroll to bottom"
-            title="Scroll to bottom"
+            aria-label={isActionsCollapsed ? "Expand actions" : "Collapse actions"}
+            title={isActionsCollapsed ? "Expand actions" : "Collapse actions"}
           >
             <svg
-              className="h-3.5 w-3.5"
+              className={cn(
+                "h-3.5 w-3.5 transition-transform duration-200",
+                isActionsCollapsed && "rotate-180"
+              )}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -217,7 +221,13 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
               />
             </svg>
           </button>
-          <div className="space-y-3">
+          <div
+            className={cn(
+              "overflow-hidden transition-all duration-200",
+              isActionsCollapsed ? "max-h-0 opacity-0 pointer-events-none" : "max-h-80 opacity-100"
+            )}
+          >
+            <div className="space-y-3">
             {onEditPage && canEdit && (
               <button
                 onClick={onEditPage}
@@ -306,6 +316,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
                 Publish
               </button>
             )}
+            </div>
           </div>
         </div>
       </div>
