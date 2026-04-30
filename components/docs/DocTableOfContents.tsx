@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -48,6 +48,9 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   const nav = useNavigation();
   const router = useRouter();
   const prefetchedRef = useRef<Set<string>>(new Set());
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const hoverScrollRafRef = useRef<number | null>(null);
+  const topLevelItems = items.filter((item) => (item.level ?? 1) === 1);
   const prefetchHref = useCallback(
     (href: string) => {
       if (!href.startsWith('/docs')) return;
@@ -58,9 +61,54 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
     [router]
   );
 
-  if (items.length === 0 && !pages?.length && !onAddPage) {
+  if (topLevelItems.length === 0 && !pages?.length && !onAddPage) {
     return null;
   }
+
+  const scrollSidebarToBottom = () => {
+    const element = scrollContainerRef.current;
+    if (!element) return;
+    element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
+  };
+
+  const stopHoverScroll = () => {
+    if (hoverScrollRafRef.current !== null) {
+      cancelAnimationFrame(hoverScrollRafRef.current);
+      hoverScrollRafRef.current = null;
+    }
+  };
+
+  const startHoverScrollDown = () => {
+    const element = scrollContainerRef.current;
+    if (!element) return;
+
+    stopHoverScroll();
+
+    const scrollStep = () => {
+      const currentElement = scrollContainerRef.current;
+      if (!currentElement) {
+        stopHoverScroll();
+        return;
+      }
+
+      const maxScrollTop = currentElement.scrollHeight - currentElement.clientHeight;
+      if (currentElement.scrollTop >= maxScrollTop) {
+        stopHoverScroll();
+        return;
+      }
+
+      currentElement.scrollTop = Math.min(currentElement.scrollTop + 2.2, maxScrollTop);
+      hoverScrollRafRef.current = requestAnimationFrame(scrollStep);
+    };
+
+    hoverScrollRafRef.current = requestAnimationFrame(scrollStep);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopHoverScroll();
+    };
+  }, []);
 
   return (
     <aside
@@ -72,19 +120,15 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
     >
       <div className="flex flex-col h-full">
         {/* Scrollable section - "On This Page" and "Pages" */}
-        <div className="p-6 pb-0 flex-1 overflow-y-auto">
-          {items.length > 0 && (
+        <div ref={scrollContainerRef} className="p-6 pb-0 flex-1 overflow-y-auto no-scrollbar">
+          {topLevelItems.length > 0 && (
             <>
               <h2 className="text-sm font-semibold text-gray-900 mb-4">
                 On This Page
               </h2>
               <nav className="space-y-2">
-                {items.map((item) => {
+                {topLevelItems.map((item) => {
                   const isActive = activeId === item.id;
-                  const level = item.level || 1;
-                  // Calculate indentation: H2=level 1, H3=level 2, H4=level 3
-                  const indentClass = level === 1 ? '' : level === 2 ? 'ml-4' : level === 3 ? 'ml-8' : 'ml-12';
-                  const fontSize = level === 1 ? 'text-sm' : 'text-sm';
                   
                   return (
                     <Link
@@ -92,10 +136,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
                       href={`#${item.id}`}
                       className={cn(
                         'block transition-colors',
-                        fontSize,
-                        indentClass,
-                        level === 1 && 'font-medium',
-                        level > 1 && 'text-gray-600',
+                        'text-sm font-medium',
                         isActive
                           ? 'text-blue-600'
                           : 'text-gray-700 hover:text-gray-900'
@@ -113,7 +154,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
           {pages && pages.length > 0 && (
             <>
               <div className={cn(
-                items.length > 0 ? "mt-8 pt-8 border-t border-gray-200" : ""
+                topLevelItems.length > 0 ? "mt-8 pt-8 border-t border-gray-200" : ""
               )}>
                 <h2 className="text-sm font-semibold text-gray-900 mb-4">
                   Pages
@@ -152,7 +193,30 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
         </div>
 
         {/* Sticky bottom section - actions only */}
-        <div className="mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
+        <div className="relative mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
+          <button
+            type="button"
+            onClick={scrollSidebarToBottom}
+            onMouseEnter={startHoverScrollDown}
+            onMouseLeave={stopHoverScroll}
+            className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rounded-full border border-gray-200 bg-white p-1.5 text-gray-500 shadow-sm transition-all duration-200 hover:text-gray-700"
+            aria-label="Scroll to bottom"
+            title="Scroll to bottom"
+          >
+            <svg
+              className="h-3.5 w-3.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
           <div className="space-y-3">
             {onEditPage && canEdit && (
               <button

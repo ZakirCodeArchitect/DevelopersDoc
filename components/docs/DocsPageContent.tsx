@@ -947,7 +947,7 @@ const DocsPageContentComponent = ({
                     }
 
                     return (
-                      <section key={section.id} id={section.id} className="mt-8">
+                      <section key={section.id} id={section.id} className="mt-8 scroll-mt-24">
                         {/* Only render title if it exists */}
                         {section.title && (
                           <h2 className="text-xl font-bold text-gray-900 mb-3">{section.title}</h2>

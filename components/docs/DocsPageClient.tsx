@@ -238,7 +238,7 @@ export function DocsPageClient({
 
         {/* Render sections */}
         {(page?.sections ?? []).map((section: DocumentSection) => (
-          <section key={section.id} id={section.id} className="mt-8">
+          <section key={section.id} id={section.id} className="mt-8 scroll-mt-24">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.title}</h2>
             {section.type === 'text' && Array.isArray(section.content) && (
               <div>
