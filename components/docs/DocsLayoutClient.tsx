@@ -25,6 +25,8 @@ export function DocsLayoutClient({
 }: DocsLayoutClientProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showExpandButton, setShowExpandButton] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const hasSearchData = processedProjects.length > 0 || processedYourDocs.length > 0;
   
   // CRITICAL: Memoize onToggleCollapse to prevent sidebar re-renders
   const handleToggleCollapse = useCallback(() => {
@@ -148,10 +150,27 @@ export function DocsLayoutClient({
         <div className="flex flex-1" style={{ fontFamily: 'var(--font-lilex), monospace' }}>
           <StableSidebar
             items={memoizedSidebarItems}
+            className="hidden md:flex"
             isCollapsed={isSidebarCollapsed}
             onToggleCollapse={handleToggleCollapse}
             {...stableHandlers}
           />
+          {isMobileSidebarOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-30 bg-black/40 md:hidden"
+                onClick={() => setIsMobileSidebarOpen(false)}
+                aria-hidden
+              />
+              <StableSidebar
+                items={memoizedSidebarItems}
+                className="!flex md:!hidden !w-[82vw] !max-w-[320px] !top-16 !h-[calc(100vh-4rem)] !z-40 shadow-xl"
+                isCollapsed={false}
+                onToggleCollapse={handleToggleCollapse}
+                {...stableHandlers}
+              />
+            </>
+          )}
           {showExpandButton && isSidebarCollapsed && (
             <button
               type="button"
@@ -159,7 +178,7 @@ export function DocsLayoutClient({
                 setShowExpandButton(false);
                 setIsSidebarCollapsed(false);
               }}
-              className="fixed left-0 p-1.5 bg-white border border-gray-200 border-l-0 rounded-r-md hover:bg-gray-50 text-gray-600 hover:text-gray-900 shadow-sm z-20 flex items-center justify-center transition-opacity duration-200"
+              className="fixed left-0 p-1.5 bg-white border border-gray-200 border-l-0 rounded-r-md hover:bg-gray-50 text-gray-600 hover:text-gray-900 shadow-sm z-20 hidden md:flex items-center justify-center transition-opacity duration-200"
               aria-label="Expand sidebar"
               title="Expand sidebar"
               style={{
@@ -181,9 +200,42 @@ export function DocsLayoutClient({
               </svg>
             </button>
           )}
-          <div className={`flex-1 min-h-screen bg-white transition-all duration-300 ${isSidebarCollapsed ? 'ml-0 pl-10' : 'ml-64'}`}>
+          <div className={`flex-1 min-h-screen bg-white transition-all duration-300 ${isSidebarCollapsed ? 'ml-0 md:pl-10' : 'ml-0 md:ml-64'}`}>
             <DocsContentArea>{children}</DocsContentArea>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen((prev) => !prev)}
+            className="fixed left-4 bottom-4 z-30 md:hidden rounded-full border border-gray-200 bg-white p-3 text-gray-700 shadow-md hover:bg-gray-50"
+            aria-label={isMobileSidebarOpen ? 'Close left sidebar' : 'Open left sidebar'}
+            title={isMobileSidebarOpen ? 'Close left sidebar' : 'Open left sidebar'}
+          >
+            {isMobileSidebarOpen ? (
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h6v14H4zM13 7h7M13 12h7M13 17h7" />
+              </svg>
+            )}
+          </button>
+          {hasSearchData && (
+            <button
+              type="button"
+              onClick={() => {
+                window.dispatchEvent(new Event('open-docs-search'));
+              }}
+              className="fixed left-1/2 bottom-4 z-30 -translate-x-1/2 md:hidden inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-700 shadow-md hover:bg-gray-50"
+              aria-label="Search documentation"
+              title="Search documentation"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 110-15 7.5 7.5 0 010 15z" />
+              </svg>
+              <span>Search docs</span>
+            </button>
+          )}
         </div>
         <CreateProjectModal />
         <CreateDocModal />

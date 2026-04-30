@@ -48,6 +48,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   const nav = useNavigation();
   const router = useRouter();
   const [isActionsCollapsed, setIsActionsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const prefetchedRef = useRef<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const hoverScrollRafRef = useRef<number | null>(null);
@@ -111,15 +112,8 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
     };
   }, []);
 
-  return (
-    <aside
-      className={cn(
-        'w-64 border-l border-gray-200 bg-gray-50',
-        'fixed right-0 top-16 h-[calc(100vh-4rem)] flex flex-col',
-        className
-      )}
-    >
-      <div className="flex flex-col h-full">
+  const sidebarContent = (
+    <div className="flex flex-col h-full">
         {/* Scrollable section - "On This Page" and "Pages" */}
         <div ref={scrollContainerRef} className="p-6 pb-0 flex-1 overflow-y-auto no-scrollbar">
           {topLevelItems.length > 0 && (
@@ -320,7 +314,53 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
           </div>
         </div>
       </div>
-    </aside>
+  );
+
+  return (
+    <>
+      <aside
+        className={cn(
+          'hidden lg:flex w-64 border-l border-gray-200 bg-gray-50',
+          'fixed right-0 top-16 h-[calc(100vh-4rem)] flex-col',
+          className
+        )}
+      >
+        {sidebarContent}
+      </aside>
+
+      <button
+        type="button"
+        onClick={() => setIsMobileOpen((prev) => !prev)}
+        className="fixed right-4 bottom-4 z-30 rounded-full border border-gray-200 bg-white p-3 text-gray-700 shadow-md hover:bg-gray-50 lg:hidden"
+        aria-label={isMobileOpen ? 'Close table of contents' : 'Open table of contents'}
+        title={isMobileOpen ? 'Close table of contents' : 'Open table of contents'}
+      >
+        {isMobileOpen ? (
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 6h11M9 12h11M9 18h11M5 6h.01M5 12h.01M5 18h.01" />
+          </svg>
+        )}
+      </button>
+
+      {isMobileOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+            onClick={() => setIsMobileOpen(false)}
+            aria-hidden
+          />
+          <aside
+            className="fixed right-0 top-0 z-40 flex h-screen w-[82vw] max-w-[320px] flex-col border-l border-gray-200 bg-gray-50 shadow-xl lg:hidden"
+          >
+            {sidebarContent}
+          </aside>
+        </>
+      )}
+    </>
   );
 };
 

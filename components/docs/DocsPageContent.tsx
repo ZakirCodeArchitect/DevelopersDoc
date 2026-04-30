@@ -145,6 +145,7 @@ const DocsPageContentComponent = ({
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [publishDocumentId, setPublishDocumentId] = useState<string>('');
   const [publishDocumentName, setPublishDocumentName] = useState<string>('');
+  const [isMobileProjectInfoOpen, setIsMobileProjectInfoOpen] = useState(false);
 
   // Project members state
   interface ProjectMember {
@@ -310,14 +311,14 @@ const DocsPageContentComponent = ({
 
           {/* Documents Grid */}
           <div className="mt-8">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Documents</h2>
               <button
                 onClick={() => {
                   // Get project ID from pageToRender (which is a ProcessedProject)
                   handleCreateDoc(pageToRender.id, pageToRender.title);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
                 aria-label="Create new document"
                 title="Create new document"
               >
@@ -419,7 +420,7 @@ const DocsPageContentComponent = ({
           </div>
         </DocContent>
         {/* Right Sidebar for Project Overview */}
-        <aside className="w-64 border-l border-gray-200 bg-gray-50 fixed right-0 top-16 h-[calc(100vh-4rem)] flex flex-col">
+        <aside className="hidden lg:flex w-64 border-l border-gray-200 bg-gray-50 fixed right-0 top-16 h-[calc(100vh-4rem)] flex-col">
           <div className="p-6 flex-1 overflow-y-auto modern-scrollbar">
             <h2 className="text-sm font-semibold text-gray-900 mb-6">Project Info</h2>
             <div className="space-y-6">
@@ -493,6 +494,107 @@ const DocsPageContentComponent = ({
             </button>
           </div>
         </aside>
+        <button
+          type="button"
+          onClick={() => setIsMobileProjectInfoOpen((prev) => !prev)}
+          className="fixed right-4 bottom-4 z-30 rounded-full border border-gray-200 bg-white p-3 text-gray-700 shadow-md hover:bg-gray-50 lg:hidden"
+          aria-label={isMobileProjectInfoOpen ? 'Close project info' : 'Open project info'}
+          title={isMobileProjectInfoOpen ? 'Close project info' : 'Open project info'}
+        >
+          {isMobileProjectInfoOpen ? (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8h.01M11 12h1v4h1m-9-4a8 8 0 1116 0 8 8 0 01-16 0z" />
+            </svg>
+          )}
+        </button>
+        {isMobileProjectInfoOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+              onClick={() => setIsMobileProjectInfoOpen(false)}
+              aria-hidden
+            />
+            <aside className="fixed right-0 top-0 z-40 flex h-screen w-[82vw] max-w-[320px] flex-col border-l border-gray-200 bg-gray-50 shadow-xl lg:hidden">
+              <div className="p-6 flex-1 overflow-y-auto modern-scrollbar">
+                <h2 className="text-sm font-semibold text-gray-900 mb-6">Project Info</h2>
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Members</p>
+                    {isLoadingMembers ? (
+                      <div className="text-xs text-gray-500">Loading...</div>
+                    ) : projectMembers.length > 0 ? (
+                      <div className="space-y-2">
+                        {projectMembers.map((member) => (
+                          <div key={member.id} className="flex items-center gap-2">
+                            {member.imageUrl ? (
+                              <img
+                                src={member.imageUrl}
+                                alt={member.email}
+                                className="w-6 h-6 rounded-full flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
+                                <span className="text-[10px] text-gray-600 font-medium">
+                                  {member.email.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-gray-700 truncate">{member.email}</p>
+                              <p className="text-[10px] text-gray-500 capitalize">{member.role}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-500">No members</div>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Documents</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {pageToRender.documents?.length || 0}
+                    </p>
+                  </div>
+                  {pageToRender.lastUpdated && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Last Updated</p>
+                      <p className="text-sm text-gray-700">{pageToRender.lastUpdated}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
+                <button
+                  onClick={() => {
+                    handleShareProject(pageToRender.id, pageToRender.title);
+                    setIsMobileProjectInfoOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                    />
+                  </svg>
+                  Manage Access
+                </button>
+              </div>
+            </aside>
+          </>
+        )}
         <CreateDocModal />
         <ShareModal
           isOpen={shareModalOpen}

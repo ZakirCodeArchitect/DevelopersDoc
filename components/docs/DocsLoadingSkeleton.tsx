@@ -9,7 +9,7 @@ export function DocsLoadingSkeleton() {
   return (
     <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]">
       <main
-        className="flex-1 flex flex-col px-8 py-8 mr-64 min-h-[calc(100vh-4rem)]"
+        className="flex-1 flex flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-8 mr-0 lg:mr-64 min-h-[calc(100vh-4rem)]"
         aria-hidden
       >
         <div className="w-full flex flex-col flex-1 min-h-0">
@@ -59,7 +59,7 @@ export function DocsLoadingSkeleton() {
         </div>
       </main>
       <aside
-        className="w-64 border-l border-gray-200 bg-gray-50 fixed right-0 top-16 h-[calc(100vh-4rem)] flex flex-col flex-shrink-0"
+        className="hidden lg:flex w-64 border-l border-gray-200 bg-gray-50 fixed right-0 top-16 h-[calc(100vh-4rem)] flex-col flex-shrink-0"
         aria-hidden
       >
         <div className="flex flex-col h-full">

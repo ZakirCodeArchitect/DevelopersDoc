@@ -31,6 +31,7 @@ const deepCompareNavItems = (prev: NavItem[], next: NavItem[]): boolean => {
 
 interface StableSidebarProps {
   items: NavItem[];
+  className?: string;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
   onCreateProject?: () => void;
@@ -47,6 +48,7 @@ export const StableSidebar = memo((props: StableSidebarProps) => {
   return (
     <DocSidebar
       items={props.items}
+      className={props.className}
       isCollapsed={props.isCollapsed}
       onToggleCollapse={props.onToggleCollapse}
       onCreateProject={props.onCreateProject}

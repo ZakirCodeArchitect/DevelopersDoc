@@ -87,6 +87,19 @@ export const Header: React.FC<HeaderProps> = ({
     };
   }, [projects.length, yourDocs.length]);
 
+  useEffect(() => {
+    const handleOpenDocsSearch = () => {
+      if (projects.length > 0 || yourDocs.length > 0) {
+        setIsSearchOpen(true);
+      }
+    };
+
+    window.addEventListener('open-docs-search', handleOpenDocsSearch);
+    return () => {
+      window.removeEventListener('open-docs-search', handleOpenDocsSearch);
+    };
+  }, [projects.length, yourDocs.length]);
+
   return (
     <header className="sticky top-0 z-50 w-full bg-background/80 backdrop-blur-md shadow-sm" style={{ fontFamily: 'var(--font-open-sans), sans-serif' }}>
       <div className="flex h-16 items-center justify-between">

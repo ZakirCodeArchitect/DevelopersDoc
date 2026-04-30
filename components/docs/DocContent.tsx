@@ -29,8 +29,8 @@ export const DocContent: React.FC<DocContentProps> = memo(({
     <main
       className={cn(
         'flex-1 flex flex-col docs-compact',
-        'px-8 py-8',
-        'mr-64', // Account for fixed sidebar width (w-64 = 256px)
+        'px-4 py-6 sm:px-6 sm:py-8 lg:px-8',
+        'mr-0 lg:mr-64', // Account for fixed sidebar width on large screens only
         'min-h-[calc(100vh-4rem)]', // Ensure minimum height for sticky footer
         className
       )}
