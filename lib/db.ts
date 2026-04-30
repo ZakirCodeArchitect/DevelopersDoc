@@ -629,6 +629,14 @@ export const getDocsNavBundleForUser = cache(
   }
 );
 
+/**
+ * Lighter nav getter for routes that do not need published docs metadata.
+ * Uses the same per-request cache semantics as getDocsNavBundleForUser.
+ */
+export const getDocsNavDataForUser = cache(async (userId: string): Promise<DocsData> => {
+  return getNavDataWithFallback(userId);
+});
+
 /** Minimal document fields needed for access check. Pass to avoid an extra DB round-trip. */
 type DocumentForAccess = { id: string; userId: string; projectId: string | null };
 

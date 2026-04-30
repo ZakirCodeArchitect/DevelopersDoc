@@ -10,8 +10,12 @@ import {
   type ProcessedPage,
 } from '@/lib/docs';
 import type { NavLink } from '@/components/docs/DocNavigation';
-import { getDocsNavBundleForUser, getPageWithSectionsCached } from '@/lib/db';
-import { getCurrentUser } from '@/lib/users';
+import {
+  getAllPublishedDocsNavCached,
+  getDocsNavDataForUser,
+  getPageWithSectionsCached,
+} from '@/lib/db';
+import { getAuthenticatedClerkUserId, getCurrentUser } from '@/lib/users';
 import { DocsPageContent } from '@/components/docs/DocsPageContent';
 import { DocsLandingPage } from '@/components/docs/DocsLandingPage';
 import { redirect } from 'next/navigation';
@@ -65,24 +69,39 @@ export interface DocsPageInnerProps {
 }
 
 export async function DocsPageInner({ params }: DocsPageInnerProps) {
-  const [user, resolvedParams] = await Promise.all([getCurrentUser(), params]);
-  if (!user) {
+  const [clerkUserId, user, resolvedParams] = await Promise.all([
+    getAuthenticatedClerkUserId(),
+    getCurrentUser(),
+    params,
+  ]);
+  if (!clerkUserId) {
     redirect('/sign-in');
+  }
+  if (!user) {
+    // Session exists; avoid redirect loops to /sign-in on transient user sync issues.
+    redirect('/');
   }
   const slug = resolvedParams.slug || [];
   const currentPath = slug.length > 0 ? `/docs/${slug.join('/')}` : '/docs';
 
   const isPublishedRoute = currentPath.startsWith('/docs/published/');
 
-  const { data, publishedDocsData } = await getDocsNavBundleForUser(user.id);
+  const data = await getDocsNavDataForUser(user.id);
 
   const processedProjects = processProjects(data.projects);
   const processedYourDocs = processYourDocs(data.yourDocs);
-  const publishSlugsMap = new Map(Object.entries(publishedDocsData.publishSlugs));
-  const processedPublishedDocs = processPublishedDocs(
-    publishedDocsData.documents,
-    publishSlugsMap
-  );
+  let processedPublishedDocs: ProcessedYourDoc[] = [];
+  if (isPublishedRoute || currentPath === '/docs/published') {
+    const publishedDocsData = await getAllPublishedDocsNavCached().catch(() => ({
+      documents: [],
+      publishSlugs: {} as Record<string, string>,
+    }));
+    const publishSlugsMap = new Map(Object.entries(publishedDocsData.publishSlugs));
+    processedPublishedDocs = processPublishedDocs(
+      publishedDocsData.documents,
+      publishSlugsMap
+    );
+  }
 
   let currentPage = findDocumentByPath(currentPath, processedProjects, processedYourDocs, processedPublishedDocs);
 

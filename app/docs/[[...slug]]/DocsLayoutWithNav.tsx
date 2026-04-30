@@ -6,16 +6,23 @@ import {
   type ProcessedYourDoc,
 } from '@/lib/docs';
 import { getDocsNavBundleForUser } from '@/lib/db';
+import { getCurrentUser } from '@/lib/users';
 import { DocsLayoutClient } from '@/components/docs/DocsLayoutClient';
 import { FontLoader } from '@/components/FontLoader';
+import { redirect } from 'next/navigation';
 
 export async function DocsLayoutWithNav({
-  userId,
   children,
 }: {
-  userId: string;
   children: React.ReactNode;
 }) {
+  const user = await getCurrentUser();
+  if (!user) {
+    // Session check already happened in layout.tsx; this fallback protects against DB sync misses.
+    redirect('/');
+  }
+
+  const userId = user.id;
   const { data, publishedDocsData } = await getDocsNavBundleForUser(userId);
   const processedProjects = processProjects(data.projects);
   const processedYourDocs = processYourDocs(data.yourDocs);

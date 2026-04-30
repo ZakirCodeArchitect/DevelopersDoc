@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { prisma } from './db';
-import { currentUser } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { acceptPendingShares } from './shares';
 
 export interface ClerkUserData {
@@ -105,20 +105,42 @@ export async function syncCurrentUser() {
 }
 
 /**
+ * Get the authenticated Clerk userId from the current session.
+ * Cached per-request so multiple checks in layout/page share one auth lookup.
+ */
+export const getAuthenticatedClerkUserId = cache(async () => {
+  const { userId } = await auth();
+  return userId;
+});
+
+/**
  * Get the current authenticated user from the database.
  * Syncs the user if they don't exist yet.
  * Wrapped in React cache() so layout + page (and multiple callers in one request) share one DB round-trip.
  */
 export const getCurrentUser = cache(async () => {
   try {
-    const clerkUser = await currentUser();
-    if (!clerkUser) {
+    const clerkUserId = await getAuthenticatedClerkUserId();
+    if (!clerkUserId) {
       return null;
     }
 
-    let user = await getUserByClerkId(clerkUser.id);
+    let user = await getUserByClerkId(clerkUserId);
     if (!user) {
-      user = await syncCurrentUser();
+      // Only hit Clerk's full user API if DB user doesn't exist yet.
+      const clerkUser = await currentUser();
+      if (!clerkUser) {
+        return null;
+      }
+      user = await syncUserFromClerk({
+        id: clerkUser.id,
+        email_addresses: clerkUser.emailAddresses.map((email) => ({
+          email_address: email.emailAddress,
+        })),
+        first_name: clerkUser.firstName,
+        last_name: clerkUser.lastName,
+        image_url: clerkUser.imageUrl,
+      });
     }
 
     return user;
