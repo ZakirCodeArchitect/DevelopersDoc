@@ -28,7 +28,6 @@ export function DocsLayoutClient({
   
   // CRITICAL: Memoize onToggleCollapse to prevent sidebar re-renders
   const handleToggleCollapse = useCallback(() => {
-    console.log('🖱️ [CLICK] Sidebar collapse toggle clicked');
     setIsSidebarCollapsed(prev => {
       const newValue = !prev;
       

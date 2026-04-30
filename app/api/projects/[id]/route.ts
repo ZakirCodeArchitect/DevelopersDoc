@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { updateProject, deleteProject } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
+import { revalidateDocsNavData } from '@/lib/revalidate-docs-cache';
 
 export async function PATCH(
   request: NextRequest,
@@ -30,6 +31,7 @@ export async function PATCH(
 
     // Update project (updateProject will verify ownership)
     const project = await updateProject(projectId, name, user.id);
+    revalidateDocsNavData();
 
     return NextResponse.json({
       success: true,
@@ -63,6 +65,7 @@ export async function DELETE(
 
     // Delete project (deleteProject will verify ownership)
     await deleteProject(projectId, user.id);
+    revalidateDocsNavData();
 
     return NextResponse.json({
       success: true,

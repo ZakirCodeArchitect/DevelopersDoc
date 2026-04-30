@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/users';
 import { prisma } from '@/lib/db';
 import {
+  revalidateDocsNavData,
+  revalidatePublishedNavData,
+} from '@/lib/revalidate-docs-cache';
+import {
   validateDocumentForPublishing,
   generatePublishSlug,
   ensureUniqueSlug,
@@ -137,6 +141,8 @@ export async function POST(
         publishSlug,
       },
     });
+    revalidatePublishedNavData();
+    revalidateDocsNavData();
 
     return NextResponse.json({
       success: true,
@@ -195,6 +201,8 @@ export async function DELETE(
     await (prisma.publishedDocument.deleteMany as any)({
       where: { documentId },
     });
+    revalidatePublishedNavData();
+    revalidateDocsNavData();
 
     return NextResponse.json({
       success: true,

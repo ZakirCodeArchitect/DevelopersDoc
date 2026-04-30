@@ -2,8 +2,6 @@
 
 import React, { createContext, useCallback, useContext, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { DocsLoadingSkeleton } from './DocsLoadingSkeleton';
-
 type NavigateFn = (href: string) => void;
 
 const NavigationContext = createContext<{
@@ -17,6 +15,7 @@ export function NavigationProvider({ children }: { children: React.ReactNode }) 
 
   const navigate = useCallback(
     (href: string) => {
+      void router.prefetch(href);
       startTransition(() => {
         router.push(href);
       });
@@ -36,9 +35,22 @@ export function useNavigation() {
   return ctx;
 }
 
-/** Renders skeleton when navigating between docs; otherwise renders children. */
+/**
+ * Keeps the previous page visible during client navigations (useTransition).
+ * Replacing the whole tree with a skeleton made every click feel slower than the server.
+ */
 export function DocsContentArea({ children }: { children: React.ReactNode }) {
   const nav = useNavigation();
-  if (nav?.isPending) return <DocsLoadingSkeleton />;
-  return <>{children}</>;
+  return (
+    <div className="relative min-h-0 min-w-0 flex-1">
+      {nav?.isPending ? (
+        <div
+          className="pointer-events-none absolute left-0 right-0 top-0 z-20 h-0.5 animate-pulse bg-[#CC561E]/90"
+          role="status"
+          aria-label="Loading"
+        />
+      ) : null}
+      {children}
+    </div>
+  );
 }

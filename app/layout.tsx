@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Open_Sans, Inter, Shadows_Into_Light, Source_Code_Pr
 import "./globals.css";
 import { FontLoader } from "@/components/FontLoader";
 import { ClerkProvider } from "@clerk/nextjs";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,6 +54,7 @@ export default function RootLayout({
         >
           <FontLoader />
           {children}
+          <SpeedInsights />
         </body>
       </html>
     </ClerkProvider>

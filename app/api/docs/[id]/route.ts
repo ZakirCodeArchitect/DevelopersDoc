@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { updateDocument, deleteDocument } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
+import { revalidateDocsNavData } from '@/lib/revalidate-docs-cache';
 
 export async function PATCH(
   request: NextRequest,
@@ -31,6 +32,7 @@ export async function PATCH(
 
     // Update document (updateDocument will verify ownership)
     const doc = await updateDocument(docId, name, user.id, projectId);
+    revalidateDocsNavData();
 
     const newHref = projectId 
       ? `/docs/projects/${projectId}/${doc.id}`
@@ -71,6 +73,7 @@ export async function DELETE(
 
     // Delete document (deleteDocument will verify ownership)
     await deleteDocument(docId, user.id, projectId);
+    revalidateDocsNavData();
 
     // Revalidate the project page and docs pages to clear cache
     if (projectId) {

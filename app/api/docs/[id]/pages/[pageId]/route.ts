@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { updatePage } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
 import type { DocumentSection } from '@/lib/docs';
+import { revalidateDocsNavData, revalidatePageCaches } from '@/lib/revalidate-docs-cache';
+
+const debugSave = process.env.DEBUG_API_SAVE === '1';
 
 // Tiptap/ProseMirror JSON node types for type-safe HTML rendering
 interface TiptapMark {
@@ -35,16 +38,17 @@ function renderNodeToHTML(node: TiptapNode): string {
   };
 
   const renderMarks = (text: string, marks: TiptapMark[] = []) => {
-    // DEBUG: Log original text
-    console.log('🟡 [DEBUG renderMarks] Original text:', {
-      text: JSON.stringify(text),
-      textLength: text.length,
-      spaceCount: (text.match(/ /g) || []).length,
-      nbspCount: (text.match(/\u00A0/g) || []).length,
-      hasMultipleSpaces: / {2,}/.test(text),
-      hasNbsp: text.includes('\u00A0')
-    });
-    
+    if (debugSave) {
+      console.log('[DEBUG renderMarks] Original text:', {
+        text: JSON.stringify(text),
+        textLength: text.length,
+        spaceCount: (text.match(/ /g) || []).length,
+        nbspCount: (text.match(/\u00A0/g) || []).length,
+        hasMultipleSpaces: / {2,}/.test(text),
+        hasNbsp: text.includes('\u00A0'),
+      });
+    }
+
     // First escape the text (this will escape & but not \u00A0)
     let result = escapeHTML(text);
     
@@ -56,19 +60,22 @@ function renderNodeToHTML(node: TiptapNode): string {
     // This is a fallback in case non-breaking spaces weren't inserted
     const beforeReplace = result;
     result = result.replace(/ {2,}/g, (match) => {
-      // Convert all spaces in the sequence to &nbsp;
       const replacement = '&nbsp;'.repeat(match.length);
-      console.log('🟡 [DEBUG renderMarks] Replacing', match.length, 'spaces with', replacement.length, '&nbsp; entities');
+      if (debugSave) {
+        console.log('[DEBUG renderMarks] Replacing spaces', match.length, replacement.length);
+      }
       return replacement;
     });
-    
-    // DEBUG: Log after processing
-    if (beforeReplace !== result || text.includes('\u00A0')) {
-      console.log('🟡 [DEBUG renderMarks] After processing:', {
+
+    if (
+      debugSave &&
+      (beforeReplace !== result || text.includes('\u00A0'))
+    ) {
+      console.log('[DEBUG renderMarks] After processing:', {
         original: JSON.stringify(text),
         result: JSON.stringify(result),
         containsNbsp: result.includes('&nbsp;'),
-        nbspCount: (result.match(/&nbsp;/g) || []).length
+        nbspCount: (result.match(/&nbsp;/g) || []).length,
       });
     }
     
@@ -113,14 +120,15 @@ function renderNodeToHTML(node: TiptapNode): string {
 
   switch (node.type) {
     case 'text':
-      // DEBUG: Log ALL text nodes to see what we're working with
-      console.log('🟡 [DEBUG renderNodeToHTML] Text node:', {
-        text: JSON.stringify(node.text),
-        textLength: node.text?.length || 0,
-        spaceCount: node.text ? (node.text.match(/ /g) || []).length : 0,
-        hasMultipleSpaces: node.text ? / {2,}/.test(node.text) : false,
-        multipleSpaceSequences: node.text ? node.text.match(/ {2,}/g) : null
-      });
+      if (debugSave) {
+        console.log('[DEBUG renderNodeToHTML] Text node:', {
+          text: JSON.stringify(node.text),
+          textLength: node.text?.length || 0,
+          spaceCount: node.text ? (node.text.match(/ /g) || []).length : 0,
+          hasMultipleSpaces: node.text ? / {2,}/.test(node.text) : false,
+          multipleSpaceSequences: node.text ? node.text.match(/ {2,}/g) : null,
+        });
+      }
       return renderMarks(node.text || '', node.marks);
     
     case 'paragraph':
@@ -339,14 +347,17 @@ function convertTiptapJSONToSections(tiptapJSON: TiptapJSON, pageId: string) {
       // Add any content (paragraphs, lists, code blocks, etc.) as HTML
       const html = renderNodeToHTML(node);
       
-      // DEBUG: Log HTML output for paragraphs with multiple spaces
-      if (node.type === 'paragraph' && html.includes('  ') || html.includes('&nbsp;')) {
+      if (
+        debugSave &&
+        node.type === 'paragraph' &&
+        (html.includes('  ') || html.includes('&nbsp;'))
+      ) {
         console.log('[DEBUG convertTiptapJSONToSections] Paragraph HTML:', {
           nodeType: node.type,
-          html: html.substring(0, 200), // First 200 chars
+          html: html.substring(0, 200),
           containsMultipleSpaces: / {2,}/.test(html),
           containsNbsp: html.includes('&nbsp;'),
-          htmlLength: html.length
+          htmlLength: html.length,
         });
       }
       
@@ -513,13 +524,14 @@ export async function PATCH(
     const body = await request.json();
     const { content, projectId } = body;
 
-    // DEBUG: Log what the server receives
-    console.log('🟡 [DEBUG API PATCH] Received save request:', {
-      docId,
-      pageId,
-      projectId,
-      contentPreview: JSON.stringify(content).substring(0, 500)
-    });
+    if (debugSave) {
+      console.log('[DEBUG API PATCH] save request', {
+        docId,
+        pageId,
+        projectId,
+        contentPreview: JSON.stringify(content).substring(0, 500),
+      });
+    }
 
     if (!content) {
       return NextResponse.json(
@@ -528,21 +540,24 @@ export async function PATCH(
       );
     }
 
-    // DEBUG: Log full content structure before conversion
-    console.log('🟡 [DEBUG API PATCH] Full content structure:', JSON.stringify(content, null, 2));
-    
+    if (debugSave) {
+      console.log('[DEBUG API PATCH] full content', JSON.stringify(content, null, 2));
+    }
+
     // Convert Tiptap JSON to sections and extract title
     const { title, sections } = convertTiptapJSONToSections(content, pageId);
     
     // Extract headings for table of contents
     const toc = extractHeadingsForTOC(content);
     
-    // DEBUG: Log sections after conversion
-    console.log('🟡 [DEBUG API PATCH] Converted sections:', JSON.stringify(sections, null, 2));
-    console.log('🟡 [DEBUG API PATCH] Extracted TOC:', JSON.stringify(toc, null, 2));
+    if (debugSave) {
+      console.log('[DEBUG API PATCH] sections', JSON.stringify(sections, null, 2), 'toc', JSON.stringify(toc));
+    }
 
     // Update or create page using updatePage function (it will verify document ownership)
     const page = await updatePage(docId, pageId, title, sections as DocumentSection[], user.id, projectId);
+    revalidatePageCaches(pageId);
+    revalidateDocsNavData();
 
     return NextResponse.json({
       success: true,

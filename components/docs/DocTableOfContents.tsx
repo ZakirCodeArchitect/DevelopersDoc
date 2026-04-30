@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useNavigation } from './NavigationContext';
 
@@ -45,6 +46,18 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   canEdit = true,
 }) => {
   const nav = useNavigation();
+  const router = useRouter();
+  const prefetchedRef = useRef<Set<string>>(new Set());
+  const prefetchHref = useCallback(
+    (href: string) => {
+      if (!href.startsWith('/docs')) return;
+      if (prefetchedRef.current.has(href)) return;
+      prefetchedRef.current.add(href);
+      void router.prefetch(href);
+    },
+    [router]
+  );
+
   if (items.length === 0 && !pages?.length && !onAddPage) {
     return null;
   }
@@ -112,6 +125,9 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
                       <Link
                         key={page.id}
                         href={page.href}
+                        prefetch={false}
+                        onMouseEnter={() => prefetchHref(page.href)}
+                        onFocus={() => prefetchHref(page.href)}
                         onClick={(e) => {
                           if (nav && page.href.startsWith('/docs')) {
                             e.preventDefault();

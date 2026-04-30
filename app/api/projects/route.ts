@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createProject } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
+import { revalidateDocsNavData } from '@/lib/revalidate-docs-cache';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,6 +26,7 @@ export async function POST(request: NextRequest) {
 
     // Create new project (createProject handles unique ID generation)
     const newProject = await createProject(name, description, user.id);
+    revalidateDocsNavData();
 
     return NextResponse.json({
       success: true,

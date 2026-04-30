@@ -7,7 +7,7 @@ import { DocTableOfContents, TocItem, PageLink } from './DocTableOfContents';
 import type { NavLink } from './DocNavigation';
 import type { ProcessedDocument, ProcessedProject, ProcessedYourDoc, ProcessedPage } from '@/lib/docs';
 import { isProject, isProjectDocument, isPage, getDocumentForPage } from '@/lib/docs';
-import { useState, useEffect, useRef, useMemo, memo, useCallback, useTransition } from 'react';
+import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCreateDoc } from './CreateDocHandler';
 import { useAddPage } from './AddPageHandler';
@@ -179,26 +179,14 @@ const DocsPageContentComponent = ({
   };
   
   // Use transition to handle navigation smoothly
-  const [isPending, startTransition] = useTransition();
   const [displayContent, setDisplayContent] = useState<{
     path: string;
     page: ProcessedDocument | ProcessedProject | ProcessedYourDoc | ProcessedPage | null;
   }>({ path: currentPath, page: currentPage });
-  const prevPathRef = useRef(currentPath);
-  
-  // Update display content when props change, using transition for smooth updates
+
   useEffect(() => {
-    if (prevPathRef.current !== currentPath) {
-      // Use transition to mark this as a non-urgent update
-      startTransition(() => {
-        setDisplayContent({ path: currentPath, page: currentPage });
-      });
-      prevPathRef.current = currentPath;
-    } else {
-      // Immediate update if path hasn't changed (just data update)
-      setDisplayContent({ path: currentPath, page: currentPage });
-    }
-  }, [currentPath, currentPage, startTransition]);
+    setDisplayContent({ path: currentPath, page: currentPage });
+  }, [currentPath, currentPage]);
   
   // Use displayContent for rendering to prevent blinking
   const pageToRender = displayContent.page;

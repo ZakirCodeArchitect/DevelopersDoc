@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createDocument } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
+import { revalidateDocsNavData } from '@/lib/revalidate-docs-cache';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,6 +27,7 @@ export async function POST(request: NextRequest) {
     // Create new document (createDocument will verify project ownership if projectId is provided)
     if (projectId) {
       const newDoc = await createDocument(name, description, user.id, projectId);
+      revalidateDocsNavData();
 
       // Get the first page slug from the created document
       const firstPage = newDoc.content.pages[0];
@@ -39,6 +41,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Create document in "Your Docs" (createDocument handles unique ID generation)
       const newDoc = await createDocument(name, description, user.id);
+      revalidateDocsNavData();
 
       // Get the first page slug from the created document
       const firstPage = newDoc.content.pages[0];

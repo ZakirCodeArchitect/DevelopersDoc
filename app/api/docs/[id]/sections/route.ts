@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { addPageToDocument, prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
+import { revalidateDocsNavData } from '@/lib/revalidate-docs-cache';
 
 export async function POST(
   request: NextRequest,
@@ -39,6 +40,7 @@ export async function POST(
       Array.isArray(sectionContent) ? sectionContent : [sectionContent],
       projectId
     );
+    revalidateDocsNavData();
 
     // Get updated document by UUID
     const updatedDoc = await prisma.document.findUnique({

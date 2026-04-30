@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useNavigation } from './NavigationContext';
 
@@ -22,6 +23,18 @@ export const DocNavigation: React.FC<DocNavigationProps> = ({
   className,
 }) => {
   const nav = useNavigation();
+  const router = useRouter();
+  const prefetchedRef = useRef<Set<string>>(new Set());
+  const prefetchHref = useCallback(
+    (href: string) => {
+      if (!href.startsWith('/docs')) return;
+      if (prefetchedRef.current.has(href)) return;
+      prefetchedRef.current.add(href);
+      void router.prefetch(href);
+    },
+    [router]
+  );
+
   if (!previous && !next) {
     return null;
   }
@@ -37,6 +50,9 @@ export const DocNavigation: React.FC<DocNavigationProps> = ({
         {previous ? (
           <Link
             href={previous.href}
+            prefetch={false}
+            onMouseEnter={() => prefetchHref(previous.href)}
+            onFocus={() => prefetchHref(previous.href)}
             onClick={(e) => {
               if (nav && previous.href.startsWith('/docs')) {
                 e.preventDefault();
@@ -65,6 +81,9 @@ export const DocNavigation: React.FC<DocNavigationProps> = ({
       {next ? (
         <Link
           href={next.href}
+          prefetch={false}
+          onMouseEnter={() => prefetchHref(next.href)}
+          onFocus={() => prefetchHref(next.href)}
           onClick={(e) => {
             if (nav && next.href.startsWith('/docs')) {
               e.preventDefault();

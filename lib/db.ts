@@ -20,21 +20,23 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 // PERFORMANCE MONITORING: Enable query logging in development
+const prismaDevQueryLog =
+  process.env.NODE_ENV === 'development' && process.env.DEBUG_PRISMA_QUERIES === '1';
+
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
-  log: process.env.NODE_ENV === 'development' 
-    ? [{ emit: 'event', level: 'query' }]
-    : ['error'],
+  log: prismaDevQueryLog ? [{ emit: 'event', level: 'query' }] : ['error'],
 });
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
-  
-  // Log slow queries in development
-  prisma.$on('query' as never, (e: any) => {
-    if (e.duration > 100) { // Log queries taking more than 100ms
-      console.log(`[DB SLOW] ${e.duration}ms: ${e.query.substring(0, 200)}...`);
-    }
-  });
+
+  if (prismaDevQueryLog) {
+    prisma.$on('query' as never, (e: any) => {
+      if (e.duration > 100) {
+        console.log(`[DB SLOW] ${e.duration}ms: ${e.query.substring(0, 200)}...`);
+      }
+    });
+  }
 }
 
 // Database utility functions
@@ -507,8 +509,14 @@ export async function getAllDocsNavData(userId: string): Promise<DocsData> {
   };
 }
 
-/** Cache TTL for nav data (seconds). Nav data doesn't change often. */
-const NAV_CACHE_REVALIDATE = 30;
+/**
+ * Nav cache TTL (seconds). Keep high for fast reads; API mutations call
+ * revalidateDocsNavData() so data stays fresh after edits.
+ */
+const NAV_CACHE_REVALIDATE =
+  Number(process.env.NAV_CACHE_SECONDS) > 0
+    ? Number(process.env.NAV_CACHE_SECONDS)
+    : 3600;
 
 /**
  * Cached nav data for a user. Key includes userId so cache is per-user.
@@ -573,6 +581,53 @@ export function getAllPublishedDocsNavCached(): Promise<{
     { revalidate: NAV_CACHE_REVALIDATE, tags: ['published-nav-data'] }
   )();
 }
+
+/**
+ * Dedupe nav work across layout + page in the same request (React cache).
+ * Without this, every /docs navigation runs the nav queries twice.
+ */
+async function getNavDataWithFallback(userId: string): Promise<DocsData> {
+  try {
+    return await getAllDocsNavDataCached(userId);
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('Error fetching all docs nav data, using minimal data:', error);
+    }
+    const [ownedProjects, ownedYourDocs] = await Promise.all([
+      getAllProjectsNav(userId),
+      getAllYourDocsNav(userId),
+    ]);
+    return {
+      projects: ownedProjects,
+      yourDocs: ownedYourDocs,
+      ownership: {
+        ownedProjectIds: new Set(ownedProjects.map((p) => p.id)),
+        ownedDocIds: new Set(ownedYourDocs.map((d) => d.id)),
+        ownedProjectDocumentIds: new Set(
+          ownedProjects.flatMap((p) => p.documents.map((d) => d.id))
+        ),
+      },
+    };
+  }
+}
+
+export const getDocsNavBundleForUser = cache(
+  async (
+    userId: string
+  ): Promise<{
+    data: DocsData;
+    publishedDocsData: { documents: YourDocData[]; publishSlugs: Record<string, string> };
+  }> => {
+    const [data, publishedDocsData] = await Promise.all([
+      getNavDataWithFallback(userId),
+      getAllPublishedDocsNavCached().catch(() => ({
+        documents: [] as YourDocData[],
+        publishSlugs: {} as Record<string, string>,
+      })),
+    ]);
+    return { data, publishedDocsData };
+  }
+);
 
 /** Minimal document fields needed for access check. Pass to avoid an extra DB round-trip. */
 type DocumentForAccess = { id: string; userId: string; projectId: string | null };
@@ -725,8 +780,11 @@ async function getPageWithSectionsUncached(pageId: string, userId: string): Prom
   };
 }
 
-/** Cache TTL for page content (seconds). Revalidate on edit via revalidateTag('page'). */
-const PAGE_CACHE_REVALIDATE = 60;
+/** Page body cache (seconds). Saves call revalidatePageCaches via API. */
+const PAGE_CACHE_REVALIDATE =
+  Number(process.env.PAGE_CACHE_SECONDS) > 0
+    ? Number(process.env.PAGE_CACHE_SECONDS)
+    : 3600;
 
 /**
  * Cached page content. Use for doc viewer so repeat navigations avoid DB.

@@ -8,10 +8,9 @@ import {
   type ProcessedProject,
   type ProcessedYourDoc,
   type ProcessedPage,
-  type YourDocData,
 } from '@/lib/docs';
 import type { NavLink } from '@/components/docs/DocNavigation';
-import { getAllDocsNavDataCached, getAllPublishedDocsNavCached, getPageWithSectionsCached } from '@/lib/db';
+import { getDocsNavBundleForUser, getPageWithSectionsCached } from '@/lib/db';
 import { getCurrentUser } from '@/lib/users';
 import { DocsPageContent } from '@/components/docs/DocsPageContent';
 import { DocsLandingPage } from '@/components/docs/DocsLandingPage';
@@ -67,75 +66,19 @@ interface DocsPageProps {
 }
 
 export default async function DocsPage({ params }: DocsPageProps) {
-  // Get current user
-  const user = await getCurrentUser();
+  const [user, resolvedParams] = await Promise.all([getCurrentUser(), params]);
   if (!user) {
     redirect('/sign-in');
   }
-
-  const resolvedParams = await params;
   const slug = resolvedParams.slug || [];
   const currentPath = slug.length > 0 ? `/docs/${slug.join('/')}` : '/docs';
 
   // Check if this is a published doc route early to avoid unnecessary data fetching
   const isPublishedRoute = currentPath.startsWith('/docs/published/');
 
-  // NAV-ONLY dataset (no sections) for fast navigation and small payloads
-  // CRITICAL OPTIMIZATION: Fetch all navigation data in parallel
-  // Cache functions are defined at module level to ensure proper caching
-  
-  // Fetch both in parallel instead of sequentially
-  let data;
-  let publishedDocsData: { documents: YourDocData[]; publishSlugs: Record<string, string> } = {
-    documents: [],
-    publishSlugs: {},
-  };
-  
-  try {
-    const [navDataResult, publishedResult] = await Promise.all([
-      getAllDocsNavDataCached(user.id).catch((error) => {
-        // If getAllDocsNavData fails (e.g., Share model not available), use minimal data
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('Error fetching all docs nav data, using minimal data:', error);
-        }
-        return Promise.all([
-          (import('@/lib/db')).then(m => m.getAllProjectsNav(user.id)),
-          (import('@/lib/db')).then(m => m.getAllYourDocsNav(user.id)),
-        ]).then(([ownedProjects, ownedYourDocs]) => ({
-          projects: ownedProjects,
-          yourDocs: ownedYourDocs,
-          ownership: {
-            ownedProjectIds: new Set(ownedProjects.map(p => p.id)),
-            ownedDocIds: new Set(ownedYourDocs.map(d => d.id)),
-            ownedProjectDocumentIds: new Set(ownedProjects.flatMap(p => p.documents.map(d => d.id))),
-          },
-        }));
-      }),
-      getAllPublishedDocsNavCached().catch(() => ({ documents: [], publishSlugs: {} })),
-    ]);
+  // Nav bundle: same call as layout — React cache() runs this once per request, not twice
+  const { data, publishedDocsData } = await getDocsNavBundleForUser(user.id);
 
-    data = navDataResult;
-    publishedDocsData = publishedResult;
-  } catch (error) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Critical error fetching navigation data:', error);
-    }
-    // Fallback to minimal data
-    const [ownedProjects, ownedYourDocs] = await Promise.all([
-      (await import('@/lib/db')).getAllProjectsNav(user.id),
-      (await import('@/lib/db')).getAllYourDocsNav(user.id),
-    ]);
-    data = {
-      projects: ownedProjects,
-      yourDocs: ownedYourDocs,
-      ownership: {
-        ownedProjectIds: new Set(ownedProjects.map(p => p.id)),
-        ownedDocIds: new Set(ownedYourDocs.map(d => d.id)),
-        ownedProjectDocumentIds: new Set(ownedProjects.flatMap(p => p.documents.map(d => d.id))),
-      },
-    };
-  }
-  
   const processedProjects = processProjects(data.projects);
   const processedYourDocs = processYourDocs(data.yourDocs);
   const publishSlugsMap = new Map(Object.entries(publishedDocsData.publishSlugs));
@@ -309,13 +252,6 @@ export default async function DocsPage({ params }: DocsPageProps) {
         next,
       },
     } as ProcessedPage;
-  }
-
-  // If navigating to /docs/published (list view), show published docs list
-  if (currentPath === '/docs/published') {
-    // Import and render the published docs list component
-    const { PublishedDocsList } = await import('@/components/docs/PublishedDocsList');
-    return <PublishedDocsList />;
   }
 
   // If navigating to /docs and no page found, show landing page
