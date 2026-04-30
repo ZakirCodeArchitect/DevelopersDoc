@@ -28,7 +28,7 @@ export const DocContent: React.FC<DocContentProps> = memo(({
   return (
     <main
       className={cn(
-        'flex-1 flex flex-col',
+        'flex-1 flex flex-col docs-compact',
         'px-8 py-8',
         'mr-64', // Account for fixed sidebar width (w-64 = 256px)
         'min-h-[calc(100vh-4rem)]', // Ensure minimum height for sticky footer
@@ -41,7 +41,7 @@ export const DocContent: React.FC<DocContentProps> = memo(({
           fullWidth ? "max-w-full" : "max-w-7xl"
         )}>
           {!hideTitle && (
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">
               {title}
             </h1>
           )}

@@ -108,6 +108,8 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
   const itemsRef = useRef(items);
   const currentPathRef = useRef(currentPath);
   const navRef = useRef<HTMLElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const hoverScrollRafRef = useRef<number | null>(null);
   // Track manually collapsed projects to prevent auto-expand from overriding user intent
   const manuallyCollapsedRef = useRef<Set<string>>(new Set());
   // Track expanded items in a ref to avoid closure issues
@@ -233,6 +235,53 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     
     setExpandedItems(newExpanded);
   };
+
+  const scrollSidebarToBottom = () => {
+    const element = scrollContainerRef.current;
+    if (!element) return;
+    element.scrollTo({ top: element.scrollHeight, behavior: 'smooth' });
+  };
+
+  const stopHoverScroll = () => {
+    if (hoverScrollRafRef.current !== null) {
+      cancelAnimationFrame(hoverScrollRafRef.current);
+      hoverScrollRafRef.current = null;
+    }
+  };
+
+  const startHoverScrollDown = () => {
+    const element = scrollContainerRef.current;
+    if (!element) return;
+
+    // Prevent multiple animation loops if mouseenter fires repeatedly.
+    stopHoverScroll();
+
+    const scrollStep = () => {
+      const currentElement = scrollContainerRef.current;
+      if (!currentElement) {
+        stopHoverScroll();
+        return;
+      }
+
+      const maxScrollTop = currentElement.scrollHeight - currentElement.clientHeight;
+      if (currentElement.scrollTop >= maxScrollTop) {
+        stopHoverScroll();
+        return;
+      }
+
+      // Smaller step for a slower, smoother hover auto-scroll.
+      currentElement.scrollTop = Math.min(currentElement.scrollTop + 2.2, maxScrollTop);
+      hoverScrollRafRef.current = requestAnimationFrame(scrollStep);
+    };
+
+    hoverScrollRafRef.current = requestAnimationFrame(scrollStep);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopHoverScroll();
+    };
+  }, []);
 
   const renderNavItem = (item: NavItem, level: number = 0) => {
     const hasChildren = item.children && item.children.length > 0;
@@ -571,7 +620,7 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
       data-collapsible-sidebar="true"
       className={cn(
         'w-64 border-r border-gray-200 bg-white',
-        'fixed left-0 top-16 h-[calc(100vh-4rem)] overflow-y-auto z-10',
+        'fixed left-0 top-16 h-[calc(100vh-4rem)] z-10 flex flex-col overflow-hidden',
         'transition-transform duration-300 ease-in-out',
         className
       )}
@@ -584,11 +633,36 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
       }}
       suppressHydrationWarning
     >
-      <nav ref={navRef} className="p-4 pb-20 space-y-1">
-        <SidebarActiveSync navRef={navRef} pathnameRef={pathnameRef} currentPathProp={currentPathProp} />
-        {items.map((item) => renderNavItem(item))}
-      </nav>
-      <div className="absolute bottom-4 left-4 right-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto no-scrollbar">
+        <nav ref={navRef} className="p-4 space-y-1">
+          <SidebarActiveSync navRef={navRef} pathnameRef={pathnameRef} currentPathProp={currentPathProp} />
+          {items.map((item) => renderNavItem(item))}
+        </nav>
+      </div>
+      <div className="relative z-20 border-t border-gray-200 bg-white px-4 py-3 shadow-[0_-10px_20px_-18px_rgba(15,23,42,0.35)]">
+        <button
+          type="button"
+          onClick={scrollSidebarToBottom}
+          onMouseEnter={startHoverScrollDown}
+          onMouseLeave={stopHoverScroll}
+          className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 rounded-full border border-gray-200 bg-white p-1.5 text-gray-500 shadow-sm transition-all duration-200 hover:text-gray-700"
+          aria-label="Scroll to bottom"
+          title="Scroll to bottom"
+        >
+          <svg
+            className="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 9l-7 7-7-7"
+            />
+          </svg>
+        </button>
         <button
           type="button"
           onClick={() => {

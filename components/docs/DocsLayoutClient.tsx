@@ -151,7 +151,7 @@ export function DocsLayoutClient({
 
   return (
     <NavigationProvider>
-      <div className="flex flex-col min-h-screen bg-white">
+      <div className="docs-ui flex flex-col min-h-screen bg-white">
         <Header
           logoText="Developers Doc"
           navLinks={navLinks}

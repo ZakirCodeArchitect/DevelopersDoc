@@ -420,7 +420,7 @@ const DocsPageContentComponent = ({
         </DocContent>
         {/* Right Sidebar for Project Overview */}
         <aside className="w-64 border-l border-gray-200 bg-gray-50 fixed right-0 top-16 h-[calc(100vh-4rem)] flex flex-col">
-          <div className="p-6 flex-1 overflow-y-auto">
+          <div className="p-6 flex-1 overflow-y-auto modern-scrollbar">
             <h2 className="text-sm font-semibold text-gray-900 mb-6">Project Info</h2>
             <div className="space-y-6">
               <div>
@@ -950,7 +950,7 @@ const DocsPageContentComponent = ({
                       <section key={section.id} id={section.id} className="mt-8">
                         {/* Only render title if it exists */}
                         {section.title && (
-                          <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.title}</h2>
+                          <h2 className="text-xl font-bold text-gray-900 mb-3">{section.title}</h2>
                         )}
                         {section.type === 'html' && Array.isArray(section.content) && (
                           <div 

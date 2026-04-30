@@ -83,13 +83,13 @@ export function DocsLandingPage({
 
   return (
     <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]">
-      <div className="flex-1 max-w-6xl mx-auto px-6 py-12">
+      <div className="flex-1 max-w-6xl mx-auto px-6 py-8">
         {/* Welcome Section */}
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-3">
             Welcome to Developers Doc
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-base text-gray-600">
             Your documentation hub. Continue where you left off or explore your projects and documents.
           </p>
         </div>
@@ -134,9 +134,9 @@ export function DocsLandingPage({
         ) : (
           <>
             {/* Quick Access to Projects */}
-            <div className="mb-12">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
+            <div className="mb-10">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-xl font-bold text-gray-900">Projects</h2>
                 <button
                   onClick={handleCreateProject}
                   className="flex items-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
@@ -165,12 +165,12 @@ export function DocsLandingPage({
                     <a
                       key={project.href}
                       href={project.href}
-                      className="group block p-6 bg-white border border-gray-200 rounded-lg hover:border-[#CC561E] hover:shadow-md transition-all duration-200"
+                      className="group block p-5 bg-white border border-gray-200 rounded-lg hover:border-[#CC561E] hover:shadow-md transition-all duration-200"
                       style={{ textDecoration: 'none' }}
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 group-hover:text-[#CC561E] transition-colors mb-1" style={{ textDecoration: 'none' }}>
+                          <h3 className="text-base font-semibold text-gray-900 group-hover:text-[#CC561E] transition-colors mb-1" style={{ textDecoration: 'none' }}>
                             {project.title}
                           </h3>
                           {project.description && (
@@ -237,9 +237,9 @@ export function DocsLandingPage({
             </div>
 
             {/* Your Documents Section */}
-            <div id="your-documents" className="mb-12">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Your Documents</h2>
+            <div id="your-documents" className="mb-10">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-xl font-bold text-gray-900">Your Documents</h2>
                 <button
                   onClick={() => handleCreateDoc()}
                   className="flex items-center gap-2 px-4 py-2 bg-[#CC561E] hover:bg-[#B84A17] text-white rounded-md transition-colors text-sm font-medium shadow-sm hover:shadow-md"
@@ -268,12 +268,12 @@ export function DocsLandingPage({
                     <a
                       key={doc.href}
                       href={doc.firstPageHref || doc.href}
-                      className="group block p-6 bg-white border border-gray-200 rounded-lg hover:border-[#CC561E] hover:shadow-md transition-all duration-200"
+                      className="group block p-5 bg-white border border-gray-200 rounded-lg hover:border-[#CC561E] hover:shadow-md transition-all duration-200"
                       style={{ textDecoration: 'none' }}
                     >
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 group-hover:text-[#CC561E] transition-colors mb-1" style={{ textDecoration: 'none' }}>
+                          <h3 className="text-base font-semibold text-gray-900 group-hover:text-[#CC561E] transition-colors mb-1" style={{ textDecoration: 'none' }}>
                             {doc.title}
                           </h3>
                           {doc.description && (
