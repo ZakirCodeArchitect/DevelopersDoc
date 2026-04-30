@@ -1,7 +1,5 @@
-import { Suspense } from 'react';
 import { getAuthenticatedClerkUserId } from '@/lib/users';
 import { DocsLayoutWithNav } from './DocsLayoutWithNav';
-import { DocsRouteLoading } from './DocsRouteLoading';
 import { redirect } from 'next/navigation';
 
 export default async function DocsLayout({
@@ -14,9 +12,5 @@ export default async function DocsLayout({
     redirect('/sign-in');
   }
 
-  return (
-    <Suspense fallback={<DocsRouteLoading />}>
-      <DocsLayoutWithNav>{children}</DocsLayoutWithNav>
-    </Suspense>
-  );
+  return <DocsLayoutWithNav>{children}</DocsLayoutWithNav>;
 }

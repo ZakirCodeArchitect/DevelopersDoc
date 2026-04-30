@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useMemo, useRef, useCallback, useState } from 'react';
-import dynamic from 'next/dynamic';
 import { NavItem } from './DocSidebar';
 import { Header } from '@/components/sections/Header';
 import type { ProcessedProject, ProcessedYourDoc } from '@/lib/docs';
@@ -9,19 +8,7 @@ import { useCreateProject } from './CreateProjectHandler';
 import { useCreateDoc } from './CreateDocHandler';
 import { useRenameDelete } from './useRenameDelete';
 import { NavigationProvider, DocsContentArea } from './NavigationContext';
-
-const StableSidebar = dynamic(
-  () => import('./StableSidebar').then((mod) => mod.StableSidebar),
-  {
-    ssr: false,
-    loading: () => (
-      <aside
-        className="fixed left-0 top-16 z-30 hidden h-[calc(100vh-4rem)] w-64 border-r border-gray-100 bg-white md:block"
-        aria-hidden
-      />
-    ),
-  }
-);
+import { StableSidebar } from './StableSidebar';
 
 interface DocsLayoutClientProps {
   sidebarItems: NavItem[];

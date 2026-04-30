@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, memo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, memo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -18,37 +18,49 @@ const SidebarActiveSync = ({
   currentPathProp?: string;
 }) => {
   const pathname = usePathname();
+  const prevActiveLinksRef = useRef<Set<Element>>(new Set());
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const navElement = navRef.current;
     if (!navElement) return;
 
     const currentPathValue = currentPathProp ?? pathname;
     pathnameRef.current = currentPathValue;
 
-    // Update active states via DOM manipulation (no React state updates)
-    navElement.querySelectorAll('[data-nav-href]').forEach((link) => {
+    // Build next active set first, then only mutate changed links to avoid blink.
+    const allLinks = Array.from(navElement.querySelectorAll('[data-nav-href]'));
+    const nextActiveLinks = new Set<Element>();
+
+    allLinks.forEach((link) => {
+      const href = link.getAttribute('data-nav-href');
+      if (!href) return;
+      if (href === currentPathValue) {
+        nextActiveLinks.add(link);
+        return;
+      }
+      if (href === '/docs' && currentPathValue !== '/docs') return;
+      if (currentPathValue.startsWith(href + '/')) {
+        nextActiveLinks.add(link);
+      }
+    });
+
+    const prevActiveLinks = prevActiveLinksRef.current;
+
+    // Deactivate only links that are no longer active.
+    prevActiveLinks.forEach((link) => {
+      if (nextActiveLinks.has(link)) return;
       link.classList.remove('bg-blue-50', 'text-blue-600', 'font-medium');
       link.classList.add('text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
     });
 
-    // Add active class to current active items (exact match)
-    const activeLinks = navElement.querySelectorAll(`[data-nav-href="${currentPathValue}"]`);
-    activeLinks.forEach((link) => {
+    // Activate only newly active links.
+    nextActiveLinks.forEach((link) => {
+      if (prevActiveLinks.has(link)) return;
       link.classList.add('bg-blue-50', 'text-blue-600', 'font-medium');
       link.classList.remove('text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
     });
 
-    // Also handle sub-path matching
-    navElement.querySelectorAll('[data-nav-href]').forEach((link) => {
-      const href = link.getAttribute('data-nav-href');
-      if (!href || href === currentPathValue) return;
-      if (href === '/docs' && currentPathValue !== '/docs') return;
-      if (currentPathValue.startsWith(href + '/')) {
-        link.classList.add('bg-blue-50', 'text-blue-600', 'font-medium');
-        link.classList.remove('text-gray-700', 'hover:bg-gray-100', 'hover:text-gray-900');
-      }
-    });
+    prevActiveLinksRef.current = nextActiveLinks;
   }, [pathname, currentPathProp, navRef, pathnameRef]);
 
   return null;
@@ -134,9 +146,9 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     router.prefetch(href);
   }, [router]);
 
-  // After mount: restore expanded state from localStorage and ensure current route is visible.
-  // This will cause at most ONE re-render after hydration (acceptable) and prevents hydration mismatch.
-  useEffect(() => {
+  // Restore expanded state before paint to avoid visible collapse->expand flicker
+  // when this component remounts during route transitions.
+  useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
 
     const setsEqual = (a: Set<string>, b: Set<string>) => {
@@ -303,10 +315,13 @@ const DocSidebarComponent: React.FC<DocSidebarProps> = ({
     const isProject = pathSegments.length === 3 && pathSegments[0] === 'docs' && pathSegments[1] === 'projects';
     // Documents under projects have 4+ segments: /docs/projects/{projectId}/{docId}
     const isProjectDocument = pathSegments.length >= 4 && pathSegments[0] === 'docs' && pathSegments[1] === 'projects';
+    const itemKey = isCollapsibleHeader
+      ? `header-${level}-${item.label}`
+      : `${item.href}-${level}`;
 
     return (
       <div 
-        key={item.label} 
+        key={itemKey}
         className={cn(
           level > 0 && level === 1 && !isProject && 'ml-1',
           level > 0 && level === 1 && isProject && 'ml-4',
