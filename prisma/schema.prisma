@@ -23,6 +23,8 @@ model Project {
   user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   documents   Document[]
   shares      Share[]
+  syncProjects DocSyncProject[]
+  aiSuggestions DocAISuggestion[]
 
   @@index([userId])
   @@map("projects")
@@ -47,6 +49,7 @@ model Document {
   pages       Page[]
   shares      Share[]
   publishedDocument PublishedDocument? // Reference to published version
+  aiSuggestions DocAISuggestion[]
 
   // Indexes for performance optimization
   @@index([userId, projectId])
@@ -64,6 +67,7 @@ model Page {
   document   Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
   
   sections  Section[]
+  aiSuggestions DocAISuggestion[]
 
   // Indexes for performance optimization
   @@index([documentId, pageNumber])
@@ -98,9 +102,30 @@ model User {
   projects      Project[]
   documents     Document[]
   sharedWithMe  Share[]   @relation("SharedWithUser")
+  syncProjects  DocSyncProject[]
+  cliAuthSessions CliAuthSession[]
 
   @@index([email])
   @@map("users")
+}
+
+model CliAuthSession {
+  id                    String   @id @default(uuid())
+  deviceCodeHash        String   @unique
+  userCode              String   @unique
+  status                String   @default("pending")
+  userId                String?
+  user                  User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  expiresAt             DateTime
+  approvedAt            DateTime?
+  usedAt                DateTime?
+  exchangeTokenHash     String?
+  exchangeTokenExpiresAt DateTime?
+  createdAt             DateTime @default(now())
+
+  @@index([status, expiresAt])
+  @@index([userId, createdAt])
+  @@map("cli_auth_sessions")
 }
 
 model Share {
@@ -139,5 +164,85 @@ model PublishedDocument {
   updatedAt   DateTime @updatedAt
   
   @@map("published_documents")
+}
+
+model DocSyncProject {
+  id               String            @id @default(uuid())
+  projectId        String            @unique
+  project          Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repoName         String
+  privacyMode      String            @default("standard")
+  syncTokenHash    String
+  framework        String?
+  defaultBranch    String?
+  lastSyncedCommit String?
+  lastScanAt       DateTime?
+  status           String            @default("active")
+  metadata         Json?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  snapshots        DocSyncSnapshot[]
+  changes          DocSyncChange[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("doc_sync_projects")
+}
+
+model DocSyncSnapshot {
+  id              String         @id @default(uuid())
+  syncProjectId   String
+  syncProject     DocSyncProject @relation(fields: [syncProjectId], references: [id], onDelete: Cascade)
+  commitSha       String
+  branch          String?
+  framework       String?
+  metadata        Json
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([syncProjectId, createdAt])
+  @@map("doc_sync_snapshots")
+}
+
+model DocSyncChange {
+  id              String         @id @default(uuid())
+  syncProjectId   String
+  syncProject     DocSyncProject @relation(fields: [syncProjectId], references: [id], onDelete: Cascade)
+  fromCommit      String?
+  toCommit        String
+  branch          String?
+  changedFiles    Json
+  diffStat        Json?
+  status          String         @default("received")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([syncProjectId, createdAt])
+  @@index([status])
+  @@map("doc_sync_changes")
+}
+
+model DocAISuggestion {
+  id             String    @id @default(uuid())
+  projectId      String
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  documentId     String?
+  document       Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  pageId         String?
+  page           Page?     @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  sourceSnapshotId String?
+  suggestionType String
+  status         String    @default("pending")
+  payload        Json
+  evidenceFiles  Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([projectId, status])
+  @@index([documentId])
+  @@index([pageId])
+  @@map("doc_ai_suggestions")
 }
 

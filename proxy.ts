@@ -14,6 +14,7 @@ const isPublicRoute = createRouteMatcher([
 const isPublicApiRoute = createRouteMatcher([
   '/api/webhooks(.*)',
   '/api/published(.*)',
+  '/api/cli(.*)',
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -30,6 +31,7 @@ export const config = {
   matcher: [
     // Docs app + APIs only — skips `/`, auth pages, redirects, and static assets
     '/docs/:path*',
+    '/cli/:path*',
     '/api/:path*',
   ],
 };

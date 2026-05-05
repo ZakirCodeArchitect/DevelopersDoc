@@ -158,6 +158,8 @@ const DocsPageContentComponent = ({
   }
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<any>(null);
+  const [isLoadingSyncStatus, setIsLoadingSyncStatus] = useState(false);
 
   const handleShareDocument = (documentId: string, documentName: string) => {
     setShareItemId(documentId);
@@ -291,6 +293,34 @@ const DocsPageContentComponent = ({
     }
   }, [displayContent.page?.id, displayContent.path]);
 
+  useEffect(() => {
+    const currentPage = displayContent.page;
+    if (!isProject(currentPage)) {
+      setSyncStatus(null);
+      return;
+    }
+
+    const fetchSyncStatus = async () => {
+      setIsLoadingSyncStatus(true);
+      try {
+        const response = await fetch(`/api/cli/project-status?projectId=${currentPage.id}`);
+        const data = await response.json();
+        if (data.success) {
+          setSyncStatus(data);
+        } else {
+          setSyncStatus(null);
+        }
+      } catch (error) {
+        console.error('Error fetching sync status:', error);
+        setSyncStatus(null);
+      } finally {
+        setIsLoadingSyncStatus(false);
+      }
+    };
+
+    fetchSyncStatus();
+  }, [displayContent.page?.id, displayContent.path]);
+
   // If current page is a project, show project overview with document list
   if (isProject(pageToRender)) {
     return (
@@ -418,6 +448,96 @@ const DocsPageContentComponent = ({
               </div>
             )}
           </div>
+
+          <div className="mt-10 border border-gray-200 rounded-lg bg-gray-50 p-6">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">Sync</h2>
+              {isLoadingSyncStatus && (
+                <span className="text-xs text-gray-500">Loading...</span>
+              )}
+            </div>
+
+            {!syncStatus?.connected ? (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-700">No codebase connected yet.</p>
+                <div className="rounded-md border border-dashed border-gray-300 bg-white p-4">
+                  <p className="text-xs font-medium text-gray-600 mb-2">Setup commands (coming soon)</p>
+                  <pre className="text-xs text-gray-700 overflow-x-auto">{`npm install --save-dev developerdoc
+npx developerdoc init
+npx developerdoc scan`}</pre>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-md bg-white border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500 mb-1">Connected Repo</p>
+                    <p className="text-sm text-gray-900">{syncStatus.syncProject?.repoName || '-'}</p>
+                  </div>
+                  <div className="rounded-md bg-white border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500 mb-1">Framework</p>
+                    <p className="text-sm text-gray-900">{syncStatus.syncProject?.framework || '-'}</p>
+                  </div>
+                  <div className="rounded-md bg-white border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500 mb-1">Privacy Mode</p>
+                    <p className="text-sm text-gray-900">{syncStatus.syncProject?.privacyMode || '-'}</p>
+                  </div>
+                  <div className="rounded-md bg-white border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500 mb-1">Last Synced Commit</p>
+                    <p className="text-sm text-gray-900 truncate">{syncStatus.syncProject?.lastSyncedCommit || '-'}</p>
+                  </div>
+                  <div className="rounded-md bg-white border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500 mb-1">Last Scan Time</p>
+                    <p className="text-sm text-gray-900">
+                      {syncStatus.lastScanTime ? new Date(syncStatus.lastScanTime).toLocaleString() : '-'}
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-white border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500 mb-1">Recent Changes (7d)</p>
+                    <p className="text-sm text-gray-900">{syncStatus.recentChangesCount ?? 0}</p>
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-gray-200 bg-white p-4">
+                  {syncStatus.generatedDocumentation?.generated &&
+                  syncStatus.generatedDocumentation?.documentId ? (
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-800">Generated documentation is ready for review.</p>
+                      <a
+                        href={`/docs/projects/${pageToRender.id}/${syncStatus.generatedDocumentation.documentId}`}
+                        className="inline-flex items-center text-xs font-medium text-[#CC561E] hover:text-[#B84A17] hover:underline"
+                      >
+                        Open {syncStatus.generatedDocumentation?.documentTitle || 'Generated Project Documentation'}
+                      </a>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-600">
+                      Run <code className="rounded bg-gray-100 px-1 py-0.5">developerdoc scan</code> to generate starter documentation.
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-md border border-gray-200 bg-white p-4">
+                  <p className="text-xs font-medium text-gray-600 mb-2">Recent Sync Events</p>
+                  {Array.isArray(syncStatus.recentChanges) && syncStatus.recentChanges.length > 0 ? (
+                    <div className="space-y-2">
+                      {syncStatus.recentChanges.slice(0, 5).map((change: any) => (
+                        <div key={change.id} className="text-xs text-gray-700 border-b border-gray-100 pb-2 last:border-b-0 last:pb-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium">{change.branch || 'unknown-branch'}</span>
+                            <span className="text-gray-500">{new Date(change.createdAt).toLocaleString()}</span>
+                          </div>
+                          <p className="text-gray-600 truncate">to {change.toCommit}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500">No sync changes recorded yet.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </DocContent>
         {/* Right Sidebar for Project Overview */}
         <aside className="hidden lg:flex w-64 border-l border-gray-200 bg-gray-50 fixed right-0 top-16 h-[calc(100vh-4rem)] flex-col">
@@ -468,6 +588,21 @@ const DocsPageContentComponent = ({
                   <p className="text-sm text-gray-700">{pageToRender.lastUpdated}</p>
                 </div>
               )}
+              <div>
+                <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Sync</p>
+                {isLoadingSyncStatus ? (
+                  <p className="text-xs text-gray-500">Loading...</p>
+                ) : !syncStatus?.connected ? (
+                  <p className="text-xs text-gray-500">No codebase connected yet</p>
+                ) : (
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-700 truncate">{syncStatus.syncProject?.repoName || 'Connected'}</p>
+                    <p className="text-[10px] text-gray-500 truncate">
+                      {syncStatus.syncProject?.lastSyncedCommit || 'No commit synced'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
@@ -566,6 +701,21 @@ const DocsPageContentComponent = ({
                       <p className="text-sm text-gray-700">{pageToRender.lastUpdated}</p>
                     </div>
                   )}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide font-medium">Sync</p>
+                    {isLoadingSyncStatus ? (
+                      <p className="text-xs text-gray-500">Loading...</p>
+                    ) : !syncStatus?.connected ? (
+                      <p className="text-xs text-gray-500">No codebase connected yet</p>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-700 truncate">{syncStatus.syncProject?.repoName || 'Connected'}</p>
+                        <p className="text-[10px] text-gray-500 truncate">
+                          {syncStatus.syncProject?.lastSyncedCommit || 'No commit synced'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="mt-auto p-6 pt-8 border-t border-gray-200 flex-shrink-0 bg-gray-50">
