@@ -1,6 +1,6 @@
 {
   "name": "@developersdoc/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DevelopersDoc sync CLI",
   "type": "module",
   "bin": {
