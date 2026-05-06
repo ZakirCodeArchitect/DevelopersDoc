@@ -139,11 +139,11 @@ export function isDocGenV2Enabled(): boolean {
   return process.env.DEVELOPERDOC_DOC_GEN_V2 !== 'false';
 }
 
-/** Use semantic v2 page builder when flag allows and CLI declared metadataVersion 2. */
+/** Use semantic v2 page builder when flag allows and CLI declared metadataVersion 2 or 3 (v3 fallback). */
 export function shouldUseBuildGeneratedPagesV2(metadataInput: unknown): boolean {
   if (!isDocGenV2Enabled()) return false;
   const m = toObject(metadataInput);
-  return m.metadataVersion === 2;
+  return m.metadataVersion === 2 || m.metadataVersion === 3;
 }
 
 function lowerDeps(metadata: JsonRecord): string[] {

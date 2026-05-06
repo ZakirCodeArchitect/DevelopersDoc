@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { sanitizeDocHtmlForViewer } from '@/lib/docs/sanitize-doc-html';
 import { DocContent } from './DocContent';
 import { CodeBlock } from './CodeBlock';
 import { InteractiveButton } from './InteractiveButton';
@@ -107,7 +108,7 @@ export function PublishedDocViewer({ slug }: PublishedDocViewerProps) {
       return (
         <div
           key={section.id}
-          dangerouslySetInnerHTML={{ __html: section.content.join('') }}
+          dangerouslySetInnerHTML={{ __html: sanitizeDocHtmlForViewer(section.content.join('')) }}
         />
       );
     } else if (section.type === 'text' && Array.isArray(section.content)) {

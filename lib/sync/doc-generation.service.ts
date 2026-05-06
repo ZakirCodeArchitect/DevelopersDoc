@@ -4,11 +4,27 @@ import {
   buildGeneratedPagesV2,
   shouldUseBuildGeneratedPagesV2,
 } from '@/lib/sync/generated-doc-pages-v2';
+import {
+  buildGeneratedPagesV3,
+  shouldUseBuildGeneratedPagesV3,
+} from '@/lib/sync/generated-doc-pages-v3';
 
 type JsonRecord = Record<string, unknown>;
 
 /** Exported for sync status / CLI recovery when suggestion row is missing */
 export const GENERATED_DOC_TITLE = 'Generated Project Documentation';
+export const REGENERATED_DOCS_SUGGESTION_TYPE = 'regenerated_docs_generation';
+
+/** Pick V3 → V2 → legacy page plan from scan metadata */
+export function buildGeneratedDocumentPages(metadataInput: unknown, detectedFramework?: string | null) {
+  if (shouldUseBuildGeneratedPagesV3(metadataInput)) {
+    return buildGeneratedPagesV3(metadataInput, detectedFramework);
+  }
+  if (shouldUseBuildGeneratedPagesV2(metadataInput)) {
+    return buildGeneratedPagesV2(metadataInput, detectedFramework);
+  }
+  return buildGeneratedPages(metadataInput, detectedFramework);
+}
 const GENERATED_DOC_DESCRIPTION =
   'Auto-generated from your codebase scan. Review and edit before publishing.';
 const GENERATED_SUGGESTION_TYPE = 'initial_docs_generation';
@@ -423,9 +439,7 @@ export async function generateInitialDocumentationForSyncProject(syncProjectId: 
     };
   }
 
-  const generatedPages = shouldUseBuildGeneratedPagesV2(latestSnapshot.metadata)
-    ? buildGeneratedPagesV2(latestSnapshot.metadata, latestSnapshot.framework)
-    : buildGeneratedPages(latestSnapshot.metadata, latestSnapshot.framework);
+  const generatedPages = buildGeneratedDocumentPages(latestSnapshot.metadata, latestSnapshot.framework);
   const evidenceFiles = extractEvidenceFiles(latestSnapshot.metadata);
 
   // Interactive transactions default to a 5s timeout in Prisma; generating many pages + nested
@@ -509,4 +523,110 @@ export async function generateInitialDocumentationForSyncProject(syncProjectId: 
     documentId: result.id,
     documentTitle: result.title,
   };
+}
+
+/** Owner or project editor — refresh generated doc pages from latest DocSyncSnapshot */
+export async function regenerateGeneratedDocumentationFromLatestSnapshot(projectId: string, userId: string) {
+  const projectAccess = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      OR: [
+        { userId },
+        {
+          shares: {
+            some: {
+              sharedWith: userId,
+              status: 'accepted',
+              role: 'editor',
+            },
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+  if (!projectAccess) {
+    return { ok: false as const, reason: 'forbidden' as const };
+  }
+
+  const syncProject = await prisma.docSyncProject.findUnique({
+    where: { projectId },
+  });
+  if (!syncProject) {
+    return { ok: false as const, reason: 'no-sync' as const };
+  }
+
+  const latestSnapshot = await prisma.docSyncSnapshot.findFirst({
+    where: { syncProjectId: syncProject.id },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!latestSnapshot) {
+    return { ok: false as const, reason: 'no-snapshot' as const };
+  }
+
+  const document = await prisma.document.findFirst({
+    where: { projectId, title: GENERATED_DOC_TITLE },
+  });
+  if (!document) {
+    return { ok: false as const, reason: 'no-generated-doc' as const };
+  }
+
+  const generatedPages = buildGeneratedDocumentPages(latestSnapshot.metadata, latestSnapshot.framework);
+  const evidenceFiles = extractEvidenceFiles(latestSnapshot.metadata);
+
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.page.deleteMany({ where: { documentId: document.id } });
+
+      for (let i = 0; i < generatedPages.length; i += 1) {
+        const page = generatedPages[i];
+        await tx.page.create({
+          data: {
+            title: page.title,
+            pageNumber: i + 1,
+            documentId: document.id,
+            sections: {
+              create: page.sections.map((section) => ({
+                title: section.title,
+                type: 'html',
+                content: section.content,
+              })),
+            },
+          },
+        });
+      }
+
+      await tx.docAISuggestion.create({
+        data: {
+          projectId,
+          documentId: document.id,
+          sourceSnapshotId: latestSnapshot.id,
+          suggestionType: REGENERATED_DOCS_SUGGESTION_TYPE,
+          status: 'pending',
+          payload: {
+            message: 'Generated documentation refreshed from latest scan',
+            regeneratedAt: new Date().toISOString(),
+          },
+          evidenceFiles,
+        },
+      });
+
+      const syncMeta = toObject(syncProject.metadata);
+      await tx.docSyncProject.update({
+        where: { id: syncProject.id },
+        data: {
+          metadata: {
+            ...syncMeta,
+            lastRegeneratedAt: new Date().toISOString(),
+            lastRegeneratedSnapshotId: latestSnapshot.id,
+          },
+        },
+      });
+    },
+    { maxWait: 20_000, timeout: 180_000 },
+  );
+
+  revalidateDocsNavData();
+
+  return { ok: true as const, documentId: document.id };
 }

@@ -37,6 +37,14 @@ export type FileClassification =
 
 export type EnvLikelyRequired = "likely_required" | "likely_optional" | "unknown";
 
+/** Safe env value presence — never stores actual values */
+export type EnvValueStatusClass =
+  | "present_non_empty"
+  | "present_empty"
+  | "referenced_only"
+  | "missing_from_env_but_referenced"
+  | "env_file_only";
+
 export interface EnvUsageEntry {
   name: string;
   files: string[];
@@ -45,6 +53,13 @@ export interface EnvUsageEntry {
   likelyRequired: EnvLikelyRequired;
   likelyPurpose: string;
   nextPublicSecretWarning?: string;
+  /** v3: how the var appears across .env names vs code refs */
+  valueStatus?: EnvValueStatusClass;
+  /** v3: coarse bucket for generated docs */
+  envClassification?: string;
+  safeNotes?: string;
+  /** v3: human-readable scope label */
+  scopeLabel?: string;
 }
 
 export interface ApiRouteInfo {
@@ -56,6 +71,18 @@ export interface ApiRouteInfo {
   usesPrisma: boolean;
   usesAuth: boolean;
   purpose: string;
+  /** v3 semantic fields (optional for older snapshots) */
+  authType?: string;
+  purposeSummary?: string;
+  dbModelsTouched?: string[];
+  prismaOperations?: string[];
+  importedServices?: string[];
+  httpStatuses?: string[];
+  sideEffectsNarrative?: string[];
+  externalEffects?: string[];
+  hasErrorHandling?: boolean;
+  analysisConfidence?: "high" | "medium" | "low";
+  analysisNotes?: string[];
 }
 
 export interface PackageScriptsSummary {
@@ -81,6 +108,10 @@ export interface PrismaEnumSummary {
 
 export interface PrismaSchemaSummary {
   datasourceProvider?: string;
+  /** env("…") name from datasource url = */
+  datasourceUrlEnv?: string;
+  /** env("…") name from directUrl = */
+  datasourceDirectUrlEnv?: string;
   generatorProvider?: string;
   models: PrismaModelSummary[];
   enums: PrismaEnumSummary[];
@@ -151,6 +182,15 @@ export function classifyPath(relPath: string): FileClassification {
     return "database";
   }
   if (lower === "middleware.ts" || lower === "middleware.js" || lower === "src/middleware.ts" || lower === "src/middleware.js") {
+    return "middleware";
+  }
+  /* Next.js 16+ root proxy (e.g. Clerk clerkMiddleware) */
+  if (
+    lower === "proxy.ts" ||
+    lower === "proxy.js" ||
+    lower === "src/proxy.ts" ||
+    lower === "src/proxy.js"
+  ) {
     return "middleware";
   }
 
@@ -331,6 +371,241 @@ export function inferPurposeFromRoute(filePath: string, methods: string[], sourc
   return summary.length > 160 ? `${summary.slice(0, 157)}...` : summary || "API route handler";
 }
 
+const PRISMA_OP_RE = /\bprisma\.([a-z][a-zA-Z0-9_]*)\.([a-z][a-zA-Z0-9_]*)\b/g;
+
+export function extractPrismaOperations(source: string): string[] {
+  const out: string[] = [];
+  for (const m of source.matchAll(PRISMA_OP_RE)) {
+    if (m[1] && m[2]) out.push(`${m[1]}.${m[2]}`);
+  }
+  return Array.from(new Set(out)).slice(0, 40);
+}
+
+export function extractHttpStatusesFromSource(source: string): string[] {
+  const found = new Set<string>();
+  for (const m of source.matchAll(/status:\s*(\d{3})/g)) {
+    if (m[1]) found.add(m[1]);
+  }
+  return Array.from(found).sort();
+}
+
+function inferAuthTypeForRoute(routePath: string, source: string, usesAuth: boolean): string {
+  const p = routePath || "";
+  const s = source;
+  if (/\/webhooks\//i.test(p) || (/\bsvix\b/i.test(s) && /webhook/i.test(s))) return "webhook secret (Svix)";
+  if (p.includes("/api/cli/scan") || p.includes("/api/cli/changes")) return "CLI sync bearer token";
+  if (p.includes("/api/cli/register") && !p.includes("register-from-auth")) return "Clerk session";
+  if (p.includes("/api/cli/register-from-auth")) return "CLI device auth token";
+  if (p.includes("/api/cli/auth/")) {
+    if (p.includes("/confirm")) return "Clerk session";
+    return "public (CLI device flow)";
+  }
+  if (p.startsWith("/api/published")) return "public";
+  if (
+    usesAuth ||
+    /\bgetCurrentUser\b/.test(s) ||
+    /\bcurrentUser\s*\(/.test(s) ||
+    /\bauth\s*\(\s*\)/.test(s)
+  ) {
+    return "Clerk session";
+  }
+  return "unknown / verify handler";
+}
+
+function inferPurposeSummary(routePath: string, methods: string[], source: string): string {
+  const p = routePath || "";
+  const m = methods.length ? methods.join("/") : "HTTP";
+  const hints: Array<{ test: boolean; text: string }> = [
+    {
+      test: p.endsWith("/api/cli/scan") || p === "/api/cli/scan",
+      text: `${m} ${p}: Receives repository scan metadata from the CLI, validates the sync token, stores a DocSyncSnapshot, updates sync project metadata, and may trigger initial documentation generation.`,
+    },
+    {
+      test: p.includes("/api/cli/register") && !p.includes("register-from-auth"),
+      text: `${m} ${p}: Creates or updates the repository sync binding for an owned project and returns a one-time plaintext sync token.`,
+    },
+    {
+      test: p.includes("/api/cli/register-from-auth"),
+      text: `${m} ${p}: Completes CLI linking after browser/device auth; may create a matching project and registers DocSyncProject with a new sync token.`,
+    },
+    {
+      test: p.includes("/api/cli/changes"),
+      text: `${m} ${p}: Records incremental file change metadata from the CLI and updates last-synced commit on the sync project.`,
+    },
+    {
+      test: p.includes("/api/cli/project-status"),
+      text: `${m} ${p}: Returns dashboard sync status (snapshots, changes, generated documentation hints) for an authenticated project member.`,
+    },
+    {
+      test: p.includes("/api/cli/auth/start"),
+      text: `${m} ${p}: Starts a device-code style CLI auth session (public).`,
+    },
+    {
+      test: p.includes("/api/cli/auth/poll"),
+      text: `${m} ${p}: Polls CLI auth session status; may return a short-lived cli auth token when approved.`,
+    },
+    {
+      test: p.includes("/api/cli/auth/confirm"),
+      text: `${m} ${p}: Confirms CLI login with a user code under a Clerk session.`,
+    },
+    {
+      test: p === "/api/published" || p.endsWith("/api/published"),
+      text: `${m} ${p}: Lists published documents (paginated public API).`,
+    },
+    {
+      test: /\/api\/published\/\[[^\]]+\]/.test(p) || /\/api\/published\/:/.test(p),
+      text: `${m} ${p}: Fetches a public published document by slug with pages and sections for public rendering.`,
+    },
+    {
+      test: p.includes("/api/webhooks/"),
+      text: `${m} ${p}: Webhook receiver (e.g. Clerk user sync) with signed secret verification.`,
+    },
+    {
+      test: p.includes("/api/docs") && !p.includes("/pages/") && !p.includes("/sections"),
+      text: `${m} ${p}: Document CRUD at collection or single-document level (verify path for create vs update).`,
+    },
+    {
+      test: p.includes("/pages/") && p.includes("/api/docs"),
+      text: `${m} ${p}: Saves editor page content (e.g. Tiptap JSON to sections) for a document page.`,
+    },
+    {
+      test: p.includes("/api/projects") && !p.includes("/share"),
+      text: `${m} ${p}: Project create/update/delete for the authenticated user.`,
+    },
+    {
+      test: p.includes("/api/projects") && p.includes("/share"),
+      text: `${m} ${p}: Project sharing: invites, listing members, or revoking access (may send email).`,
+    },
+    {
+      test: p.includes("/api/documents") && p.includes("/publish"),
+      text: `${m} ${p}: Publish or unpublish a document to a public slug.`,
+    },
+    {
+      test: p.includes("/api/documents") && p.includes("/share"),
+      text: `${m} ${p}: Document-level sharing and invitations (may send email).`,
+    },
+  ];
+  for (const h of hints) {
+    if (h.test) return h.text;
+  }
+  const verbs: string[] = [];
+  if (/\bprisma\./.test(source)) verbs.push("uses database");
+  if (/revalidate/.test(source)) verbs.push("cache revalidation");
+  if (/nodemailer|sendMail|transport\.sendMail/i.test(source)) verbs.push("may send email");
+  if (/fetch\s*\(/.test(source) && /api\.|https?:/.test(source)) verbs.push("calls external HTTP");
+  const verbStr = verbs.length ? ` — ${verbs.join("; ")}` : "";
+  return `${m} ${p || "route"}: HTTP API handler${verbStr}. Inspect handler for full behavior.`;
+}
+
+function inferImportedServices(imported: string[]): string[] {
+  return imported
+    .filter(
+      (i) =>
+        i.startsWith("@/") &&
+        (i.includes("/service") || i.includes("/services/") || i.includes("lib/sync") || i.includes("lib/")),
+    )
+    .slice(0, 25);
+}
+
+function inferSideEffects(source: string, routePath: string): { narrative: string[]; external: string[] } {
+  const narrative: string[] = [];
+  const external: string[] = [];
+  if (/\bprisma\.\w+\.(create|update|upsert|delete|deleteMany)\b/.test(source)) narrative.push("writes to database");
+  if (/\bprisma\.\w+\.findMany\b/.test(source) || /\bprisma\.\w+\.findFirst\b/.test(source)) narrative.push("reads database");
+  if (/revalidatePath|revalidateTag/.test(source)) narrative.push("revalidates Next.js cache");
+  if (/nodemailer|sendMail/i.test(source)) {
+    narrative.push("may send email");
+    external.push("SMTP / email delivery");
+  }
+  if (/\/publish/i.test(routePath) && /upsert|create|delete/.test(source)) narrative.push("updates published document metadata");
+  if (/\/api\/cli\/scan/i.test(routePath)) narrative.push("stores scan snapshot; may trigger documentation generation");
+  return { narrative, external };
+}
+
+/** Enrich a scanned route with v3 analysis fields */
+export function enrichApiRouteForV3(info: ApiRouteInfo, source: string): ApiRouteInfo {
+  const prismaOperations = extractPrismaOperations(source);
+  const modelSet = new Set<string>();
+  for (const op of prismaOperations) {
+    const model = op.split(".")[0];
+    if (model && /^[A-Z]/.test(model)) modelSet.add(model);
+    else if (model) modelSet.add(model.charAt(0).toUpperCase() + model.slice(1));
+  }
+  const side = inferSideEffects(source, info.routePath);
+  const notes: string[] = [];
+  if (!info.methods.length) notes.push("No exported HTTP methods matched — check dynamic route exports.");
+  const hasCatch = /\bcatch\s*\(/.test(source) || /try\s*\{/.test(source);
+  return {
+    ...info,
+    authType: inferAuthTypeForRoute(info.routePath, source, info.usesAuth),
+    purposeSummary: inferPurposeSummary(info.routePath, info.methods, source),
+    dbModelsTouched: Array.from(modelSet).slice(0, 20),
+    prismaOperations,
+    importedServices: inferImportedServices(info.importedModules),
+    httpStatuses: extractHttpStatusesFromSource(source),
+    sideEffectsNarrative: side.narrative,
+    externalEffects: side.external,
+    hasErrorHandling: hasCatch,
+    analysisConfidence: info.methods.length && info.routePath ? "high" : "medium",
+    analysisNotes: notes.length ? notes : undefined,
+  };
+}
+
+export interface AuthProxyAnalysis {
+  frameworkMiddlewarePath?: string;
+  authProviderSignals: string[];
+  publicRoutePatterns: string[];
+  publicApiRoutePatterns: string[];
+  usesAuthProtect: boolean;
+  matcherPatterns?: string[];
+  confidence: "high" | "medium" | "low";
+  notes: string[];
+}
+
+export function analyzeAuthProxyFromSource(source: string, filePath: string): AuthProxyAnalysis {
+  const notes: string[] = [];
+  const authProviderSignals: string[] = [];
+  if (/clerkMiddleware/i.test(source)) authProviderSignals.push("Clerk clerkMiddleware");
+  if (/createRouteMatcher/i.test(source)) authProviderSignals.push("createRouteMatcher");
+  if (/auth\.protect/i.test(source)) authProviderSignals.push("auth.protect()");
+  const publicRoutePatterns: string[] = [];
+  const publicApiRoutePatterns: string[] = [];
+  for (const m of source.matchAll(/createRouteMatcher\(\s*\[([\s\S]*?)\]\s*\)/g)) {
+    const inner = m[1] ?? "";
+    for (const q of inner.matchAll(/['"]([^'"]+)['"]/g)) {
+      const lit = q[1]?.trim();
+      if (!lit) continue;
+      if (lit.includes("/api/")) publicApiRoutePatterns.push(lit);
+      else publicRoutePatterns.push(lit);
+    }
+  }
+  if (!publicApiRoutePatterns.length && /\/api\/published|\/api\/webhooks|\/api\/cli/i.test(source)) {
+    if (/\/api\/published/.test(source)) publicApiRoutePatterns.push("/api/published(.*)");
+    if (/\/api\/webhooks/.test(source)) publicApiRoutePatterns.push("/api/webhooks(.*)");
+    if (/\/api\/cli/.test(source)) publicApiRoutePatterns.push("/api/cli(.*)");
+  }
+  if (!publicRoutePatterns.length && /\/sign-in|\/sign-up/i.test(source)) {
+    publicRoutePatterns.push("/sign-in(.*)", "/sign-up(.*)");
+  }
+  const matcherPatterns: string[] = [];
+  const cfg = /export\s+const\s+config\s*=\s*\{[\s\S]*?matcher:\s*\[([\s\S]*?)\]/m.exec(source);
+  if (cfg?.[1]) {
+    for (const q of cfg[1].matchAll(/['"]([^'"]+)['"]/g)) {
+      if (q[1]) matcherPatterns.push(q[1]);
+    }
+  }
+  return {
+    frameworkMiddlewarePath: filePath.replace(/\\/g, "/"),
+    authProviderSignals: Array.from(new Set(authProviderSignals)),
+    publicRoutePatterns: Array.from(new Set(publicRoutePatterns)),
+    publicApiRoutePatterns: Array.from(new Set(publicApiRoutePatterns)),
+    usesAuthProtect: /auth\.protect/.test(source),
+    matcherPatterns: matcherPatterns.length ? matcherPatterns : undefined,
+    confidence: authProviderSignals.length ? "high" : "low",
+    notes,
+  };
+}
+
 export function splitImports(
   specifier: string,
   projectRootRel: string,
@@ -394,11 +669,23 @@ export function inferEnvPurpose(name: string): string {
   return "Application configuration";
 }
 
+/** Clerk and other intentionally public NEXT_PUBLIC_* patterns — do not treat "KEY" alone as secret */
+export function isLikelySafeNextPublicName(name: string): boolean {
+  const up = name.toUpperCase();
+  if (!up.startsWith("NEXT_PUBLIC_")) return false;
+  const rest = up.slice("NEXT_PUBLIC_".length);
+  if (rest.includes("CLERK_PUBLISHABLE")) return true;
+  if (rest.includes("SIGN_IN") || rest.includes("SIGN_UP") || rest.includes("REDIRECT")) return true;
+  if (rest === "APP_URL") return true;
+  return false;
+}
+
 export function looksSecretLike(name: string): boolean {
   const up = name.toUpperCase();
   if (up.startsWith("NEXT_PUBLIC_")) {
+    if (isLikelySafeNextPublicName(name)) return false;
     const rest = up.slice("NEXT_PUBLIC_".length);
-    return /SECRET|KEY|TOKEN|PASSWORD|PRIVATE|AUTH|API/i.test(rest);
+    return /SECRET|PASSWORD|PRIVATE|TOKEN|WEBHOOK|API_KEY|_API_KEY|AUTH_SECRET/i.test(rest);
   }
   return false;
 }
@@ -443,6 +730,52 @@ export function buildEnvUsageEntries(map: Map<string, Set<string>>): EnvUsageEnt
   return entries.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+export function classifyEnvForDocs(name: string): string {
+  const up = name.toUpperCase();
+  if (up.includes("DATABASE") || up === "DIRECT_URL" || up.includes("SHADOW_DATABASE")) return "database";
+  if (up.includes("CLERK") || up.includes("WEBHOOK")) return "auth";
+  if (up.includes("EMAIL") || up.includes("SMTP") || up.includes("MAIL")) return "email";
+  if (up.includes("NAV_CACHE") || up.includes("PAGE_CACHE")) return "cache";
+  if (up.includes("REDIS")) return "cache";
+  if (up.includes("VERCEL") || up === "NODE_ENV") return "platform";
+  if (up.includes("DEBUG") || up.startsWith("DEVELOPERDOC_")) return "feature_flag";
+  if (up.includes("URL") || up.includes("HOST") || up.includes("DOMAIN")) return "url";
+  if (/SECRET|PASSWORD|TOKEN|_KEY/i.test(up) && !isLikelySafeNextPublicName(name)) return "secret";
+  return "unknown";
+}
+
+/** Safe presence in .env files — only empty vs non-empty, never values */
+export function attachEnvValueStatus(
+  entries: EnvUsageEntry[],
+  envPresence: Map<string, "empty" | "non_empty">,
+): EnvUsageEntry[] {
+  return entries.map((e) => {
+    const pres = envPresence.get(e.name);
+    const codeRefs = e.files.filter((f) => f !== "(env-files)" && !/\.env/i.test(f));
+    const onlyEnvMarker = e.files.length > 0 && e.files.every((f) => f === "(env-files)" || /\.env/i.test(f));
+    let valueStatus: EnvValueStatusClass;
+    if (pres === "non_empty") valueStatus = "present_non_empty";
+    else if (pres === "empty") valueStatus = "present_empty";
+    else if (codeRefs.length > 0) valueStatus = "missing_from_env_but_referenced";
+    else if (onlyEnvMarker) valueStatus = "env_file_only";
+    else valueStatus = "referenced_only";
+
+    const scope = e.isPublic ? "public" : e.serverOnly ? "server-only" : "unknown";
+    const safeNotes =
+      e.isPublic && isLikelySafeNextPublicName(e.name)
+        ? "Intended for browser / public embedding (framework convention)."
+        : undefined;
+
+    return {
+      ...e,
+      valueStatus,
+      envClassification: classifyEnvForDocs(e.name),
+      ...(safeNotes ? { safeNotes } : {}),
+      scopeLabel: scope,
+    };
+  });
+}
+
 function extractBalancedBlock(src: string, startIdx: number): { end: number; body: string } | null {
   const open = src.indexOf("{", startIdx);
   if (open < 0) return null;
@@ -462,12 +795,19 @@ function extractBalancedBlock(src: string, startIdx: number): { end: number; bod
 
 export function parsePrismaSchema(schemaContent: string): Omit<PrismaSchemaSummary, "migrationsFolderExists"> {
   let datasourceProvider: string | undefined;
+  let datasourceUrlEnv: string | undefined;
+  let datasourceDirectUrlEnv: string | undefined;
   const ds = schemaContent.match(/datasource\s+\w+\s*\{/i);
   if (ds && ds.index !== undefined) {
     const block = extractBalancedBlock(schemaContent, ds.index);
     const inner = block?.body ?? "";
-    const prov = /provider\s*=\s*(\w+)/i.exec(inner);
-    if (prov?.[1]) datasourceProvider = prov[1];
+    const prov = /provider\s*=\s*(?:"([^"]+)"|(\w+))/i.exec(inner);
+    const pv = prov?.[1] ?? prov?.[2];
+    if (pv) datasourceProvider = pv;
+    const urlM = /url\s*=\s*env\s*\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\)/i.exec(inner);
+    if (urlM?.[1]) datasourceUrlEnv = urlM[1];
+    const dirM = /directUrl\s*=\s*env\s*\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\)/i.exec(inner);
+    if (dirM?.[1]) datasourceDirectUrlEnv = dirM[1];
   }
 
   let generatorProvider: string | undefined;
@@ -527,6 +867,8 @@ export function parsePrismaSchema(schemaContent: string): Omit<PrismaSchemaSumma
 
   return {
     datasourceProvider,
+    datasourceUrlEnv,
+    datasourceDirectUrlEnv,
     generatorProvider,
     models: models.slice(0, 120),
     enums: enums.slice(0, 80),

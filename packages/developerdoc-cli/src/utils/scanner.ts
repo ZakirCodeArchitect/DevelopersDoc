@@ -16,11 +16,14 @@ import {
   bucketClassifications,
   buildEnvUsageEntries,
   buildFileImportsSummary,
+  analyzeAuthProxyFromSource,
+  attachEnvValueStatus,
   classifyPath,
   detectAuthUsage,
   detectPackageManager,
   detectPrismaUsage,
   docTopicGuess,
+  enrichApiRouteForV3,
   extractExportedHttpMethods,
   extractMarkdownTitle,
   extractImportedModuleSpecifiers,
@@ -35,6 +38,16 @@ import {
   responsibilityBlurb,
   truncateSummary,
 } from "./scanner-semantic.js";
+import {
+  buildAuthAnalysisV3,
+  buildGenerationHintsV3,
+  buildPrismaAnalysisV3,
+  buildProjectSummaryV3,
+  buildRiskAnalysisV3,
+  buildRuntimeFlowsV3,
+  buildScanQuality,
+  buildSetupPlanV3,
+} from "./scanner-v3.js";
 
 const IGNORED = ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/build/**", "**/.next/**"];
 const MAX_FILE_TREE_ITEMS = 500;
@@ -65,7 +78,7 @@ export interface ScanMetadata {
   deploymentFiles: string[];
   docsFiles: string[];
 
-  metadataVersion: 2;
+  metadataVersion: 2 | 3;
   filesByClassification: Partial<Record<FileClassification, string[]>>;
   apiRoutes: ApiRouteInfo[];
   envUsage: EnvUsageEntry[];
@@ -75,6 +88,21 @@ export interface ScanMetadata {
   moduleMap: ModuleSummary[];
   dependencyGraph: FileImportsSummary[];
   setupHints: SetupHints;
+
+  /** v3 semantic buckets (present when metadataVersion === 3) */
+  projectSummary?: import("./scanner-v3.js").ProjectSummaryV3;
+  runtimeSurfaces?: string[];
+  apiRouteAnalysis?: { summary: string; confidence: string };
+  authAnalysis?: import("./scanner-v3.js").AuthAnalysisV3;
+  prismaAnalysis?: import("./scanner-v3.js").PrismaAnalysisV3;
+  envAnalysis?: import("./scanner-v3.js").EnvAnalysisV3;
+  setupPlan?: import("./scanner-v3.js").SetupPlanV3;
+  moduleAnalysis?: { modules: ModuleSummary[]; notes: string[] };
+  frontendAnalysis?: { bullets: string[]; confidence: string };
+  runtimeFlows?: import("./scanner-v3.js").RuntimeFlowV3[];
+  riskAnalysis?: import("./scanner-v3.js").RiskAnalysisV3;
+  generationHints?: import("./scanner-v3.js").GenerationHintsV3;
+  scanQuality?: import("./scanner-v3.js").ScanQualitySummary;
 }
 
 function detectFramework(dependencies: Record<string, string> | undefined): string {
@@ -90,7 +118,15 @@ function detectFramework(dependencies: Record<string, string> | undefined): stri
 }
 
 async function readEnvFileVarNames(cwd: string): Promise<string[]> {
-  const names = new Set<string>();
+  const { keys } = await readEnvFileKeysWithPresence(cwd);
+  return keys.sort();
+}
+
+/** Keys only; values never stored — tracks empty vs non-empty assignment */
+async function readEnvFileKeysWithPresence(
+  cwd: string,
+): Promise<{ keys: string[]; presence: Map<string, "empty" | "non_empty"> }> {
+  const presence = new Map<string, "empty" | "non_empty">();
 
   for (const envFile of ENV_FILE_CANDIDATES) {
     const envPath = path.join(cwd, envFile);
@@ -101,12 +137,25 @@ async function readEnvFileVarNames(cwd: string): Promise<string[]> {
       const line = rawLine.trim();
       if (!line || line.startsWith("#")) continue;
       const normalized = line.startsWith("export ") ? line.slice(7).trim() : line;
-      const match = normalized.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/);
-      if (match?.[1]) names.add(match[1]);
+      const match = normalized.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+      if (!match?.[1]) continue;
+      const key = match[1];
+      let rest = (match[2] ?? "").trim();
+      if (
+        (rest.startsWith('"') && rest.endsWith('"') && rest.length >= 2) ||
+        (rest.startsWith("'") && rest.endsWith("'") && rest.length >= 2)
+      ) {
+        rest = rest.slice(1, -1).trim();
+      }
+      const nonEmpty = rest.length > 0;
+      const nextStatus: "empty" | "non_empty" = nonEmpty ? "non_empty" : "empty";
+      const prev = presence.get(key);
+      if (prev === "non_empty" || nextStatus === "non_empty") presence.set(key, "non_empty");
+      else presence.set(key, "empty");
     }
   }
 
-  return Array.from(names);
+  return { keys: Array.from(presence.keys()), presence };
 }
 
 export async function readDependencies(cwd: string): Promise<string[]> {
@@ -251,6 +300,19 @@ async function loadImportantDocs(cwd: string, candidatePaths: string[]): Promise
   return out;
 }
 
+async function loadAuthProxyAnalysis(
+  cwd: string,
+): Promise<ReturnType<typeof analyzeAuthProxyFromSource> | undefined> {
+  const candidates = ["proxy.ts", "src/proxy.ts", "middleware.ts", "src/middleware.ts"];
+  for (const c of candidates) {
+    const p = path.join(cwd, c);
+    if (!existsSync(p)) continue;
+    const src = await readFile(p, "utf8").catch(() => "");
+    if (src.trim()) return analyzeAuthProxyFromSource(src, c);
+  }
+  return undefined;
+}
+
 export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
   const packagePath = path.join(cwd, "package.json");
   let dependenciesMap: Record<string, string> | undefined;
@@ -258,6 +320,8 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
   let pkgScripts: Record<string, string> | undefined;
   let enginesNode: string | undefined;
   let prismaSeedCommand: string | undefined;
+  let rootBuildScript: string | undefined;
+  let rootHasTestScript = false;
 
   try {
     const content = await readFile(packagePath, "utf8");
@@ -272,6 +336,8 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
     devDependenciesMap = pkg.devDependencies ?? {};
     pkgScripts = pkg.scripts ?? {};
     enginesNode = pkg.engines?.node;
+    rootBuildScript = pkg.scripts?.build;
+    rootHasTestScript = Boolean(pkg.scripts?.test);
     if (typeof pkg.prisma?.seed === "string" && pkg.prisma.seed.trim()) {
       prismaSeedCommand = pkg.prisma.seed.trim();
     }
@@ -344,7 +410,7 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
   });
 
   const envUsageMap = new Map<string, Set<string>>();
-  const envFileVarNames = await readEnvFileVarNames(cwd);
+  const { keys: envFileVarNames, presence: envKeyPresence } = await readEnvFileKeysWithPresence(cwd);
   for (const v of envFileVarNames) {
     mergeEnvUsage(envUsageMap, v, "(env-files)");
   }
@@ -365,7 +431,7 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
       mergeEnvUsage(envUsageMap, name, rel);
     }
 
-    apiRoutes.push({
+    const base: ApiRouteInfo = {
       filePath: normalizeSeparators(rel),
       routePath,
       methods,
@@ -374,7 +440,8 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
       usesPrisma: detectPrismaUsage(content, importedModules),
       usesAuth: detectAuthUsage(content, importedModules),
       purpose: inferPurposeFromRoute(rel, methods, content),
-    });
+    };
+    apiRoutes.push(enrichApiRouteForV3(base, content));
   }
 
   const envVarMatchesFromScan = new Set<string>();
@@ -451,7 +518,8 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
     dependencyGraph,
   );
 
-  const envUsage = buildEnvUsageEntries(envUsageMap);
+  let envUsage = buildEnvUsageEntries(envUsageMap);
+  envUsage = attachEnvValueStatus(envUsage, envKeyPresence);
   const legacyEnvVars = Array.from(
     new Set([...envFileVarNames, ...envVarMatchesFromScan, ...envUsage.map((e) => e.name)]),
   ).sort();
@@ -476,8 +544,95 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
     nodeEngine: enginesNode,
   };
 
+  const authProxy = await loadAuthProxyAnalysis(cwd);
+  const missingDotEnvExample = !existsSync(path.join(cwd, ".env.example"));
+  const monorepoPackages = await fg("packages/*/package.json", { cwd, onlyFiles: true, ignore: IGNORED });
+  const hasCliPackage = existsSync(path.join(cwd, "packages/developerdoc-cli/package.json"));
+  const scanFileCapHit = scanCandidates.length > MAX_SCAN_FILES;
+  const framework = detectFramework(dependenciesMap);
+  const hasClerk =
+    depsList.some((d) => d.toLowerCase().includes("clerk")) ||
+    devDepsList.some((d) => d.toLowerCase().includes("clerk"));
+  const hasCliApi = apiRoutes.some((r) => r.routePath.includes("/api/cli"));
+  const emailDetected = depsList.some((d) => /nodemailer|smtp/i.test(d));
+
+  const pm = detectPackageManager(cwd, (p) => existsSync(p));
+  const installCmd =
+    pm === "pnpm"
+      ? "pnpm install"
+      : pm === "yarn"
+        ? "yarn install"
+        : pm === "bun"
+          ? "bun install"
+          : "npm install";
+
+  const prismaAnalysis = buildPrismaAnalysisV3(prismaSchema, apiRoutes);
+  const authAnalysis = buildAuthAnalysisV3(authProxy, apiRoutes);
+  const runtimeFlows = buildRuntimeFlowsV3(apiRoutes);
+  const riskAnalysis = buildRiskAnalysisV3({
+    missingDotEnvExample,
+    migrationsPresent: Boolean(prismaSchema?.migrationsFolderExists),
+    rootBuildScript,
+    apiRoutes,
+    packageJsonHasTestScript: rootHasTestScript,
+    scanFileCapHit,
+    prismaProvider: prismaSchema?.datasourceProvider,
+  });
+  const warningsCount =
+    riskAnalysis.items.filter((i) => i.severity === "risk" || i.severity === "needs_confirmation").length +
+    (scanFileCapHit ? 1 : 0);
+  const scanQuality = buildScanQuality({
+    filesScanned: Math.min(scanCandidates.length, MAX_SCAN_FILES),
+    cap: MAX_SCAN_FILES,
+    apiRoutes,
+    prisma: prismaSchema,
+    envUsage,
+    modules: moduleMap,
+    flows: runtimeFlows,
+    missingDotEnvExample,
+    warningsCount,
+  });
+
+  const setupPlan = buildSetupPlanV3({
+    packageManager: pm,
+    installCmd,
+    devCmd: packageScripts.dev ?? null,
+    migrateCmd: packageScripts.prismaMigrate ?? null,
+    prismaGenerateCmd: packageScripts.prismaGenerate ?? null,
+    clerkDetected: Boolean(setupHints.clerkDetected ?? hasClerk),
+    emailDetected,
+    // Prefer real local env files (.env*) as the source of required names.
+    requiredEnvNames:
+      envFileVarNames.length > 0
+        ? envFileVarNames
+        : setupHints.requiredEnvVars ?? [],
+    prismaUrlEnv: prismaSchema?.datasourceUrlEnv,
+    prismaDirectEnv: prismaSchema?.datasourceDirectUrlEnv,
+    hasCliPackage,
+  });
+
+  const runtimeSurfaces = [
+    "Next.js App Router UI",
+    ...(hasCliApi ? ["REST API (app/api)", "CLI sync endpoints (/api/cli/*)"] : ["REST API (app/api)"]),
+    ...(prismaSchema ? ["PostgreSQL via Prisma"] : ["Data layer (verify ORM)"]),
+    ...(hasClerk ? ["Clerk web sessions"] : []),
+    ...(monorepoPackages.length ? [`Monorepo packages (${monorepoPackages.length})`] : []),
+  ];
+
+  const fcKeys = filesByClassification;
+  const frontendAnalysis = {
+    bullets: [
+      `Classified UI pages: ${(fcKeys.ui_page ?? []).length}; layouts: ${(fcKeys.layout ?? []).length}; components: ${(fcKeys.component ?? []).length}.`,
+      "Marketing and docs app routes live under app/; verify app/docs for editor vs reader.",
+      ...(authProxy?.frameworkMiddlewarePath
+        ? [`Auth edge file: ${authProxy.frameworkMiddlewarePath}`]
+        : []),
+    ],
+    confidence: "medium" as const,
+  };
+
   return {
-    framework: detectFramework(dependenciesMap),
+    framework,
     dependencies: depsList,
     devDependencies: devDepsList,
     fileTree: fileTree.slice(0, MAX_FILE_TREE_ITEMS),
@@ -488,7 +643,7 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
     deploymentFiles: deploymentFiles.slice(0, MAX_FILE_TREE_ITEMS),
     docsFiles: docsFiles.slice(0, MAX_FILE_TREE_ITEMS),
 
-    metadataVersion: 2,
+    metadataVersion: 3,
     filesByClassification,
     apiRoutes,
     envUsage,
@@ -498,6 +653,39 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
     moduleMap,
     dependencyGraph,
     setupHints,
+
+    projectSummary: buildProjectSummaryV3({
+      framework,
+      deps: depsList,
+      hasPrisma: Boolean(prismaSchema),
+      hasClerk,
+      hasCli: hasCliApi,
+      moduleCount: moduleMap.length,
+    }),
+    runtimeSurfaces,
+    apiRouteAnalysis: {
+      summary: `${apiRoutes.length} route handler file(s) analyzed with auth/DB/env heuristics.`,
+      confidence: scanFileCapHit ? "medium" : "high",
+    },
+    authAnalysis,
+    prismaAnalysis,
+    envAnalysis: {
+      entries: envUsage,
+      implicitFrameworkVars: ["CLERK_SECRET_KEY", "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"].filter(
+        (n) => !envUsage.some((e) => e.name === n),
+      ),
+      warnings: missingDotEnvExample ? ["No .env.example — onboarding risk"] : [],
+    },
+    setupPlan,
+    moduleAnalysis: {
+      modules: moduleMap,
+      notes: monorepoPackages.length ? [`Detected ${monorepoPackages.length} workspace package(s).`] : [],
+    },
+    frontendAnalysis,
+    runtimeFlows,
+    riskAnalysis,
+    generationHints: buildGenerationHintsV3(),
+    scanQuality,
   };
 }
 

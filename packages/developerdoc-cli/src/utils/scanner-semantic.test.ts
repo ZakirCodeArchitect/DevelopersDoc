@@ -70,5 +70,25 @@ describe("scanner-semantic", () => {
   it("infers env purposes and secret warnings", () => {
     assert.match(inferEnvPurpose("DATABASE_URL"), /database/i);
     assert.ok(looksSecretLike("NEXT_PUBLIC_API_SECRET"));
+    assert.equal(looksSecretLike("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY"), false);
+  });
+
+  it("classifies root proxy.ts like middleware", () => {
+    assert.equal(classifyPath("proxy.ts"), "middleware");
+    assert.equal(classifyPath("src/proxy.ts"), "middleware");
+  });
+
+  it("parses prisma datasource env var names", () => {
+    const schema = `
+      datasource db {
+        provider  = postgresql
+        url       = env("DATABASE_URL")
+        directUrl = env("DIRECT_URL")
+      }
+      model X { id Int @id }
+    `;
+    const p = parsePrismaSchema(schema);
+    assert.equal(p.datasourceUrlEnv, "DATABASE_URL");
+    assert.equal(p.datasourceDirectUrlEnv, "DIRECT_URL");
   });
 });

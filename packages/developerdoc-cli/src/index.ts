@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { runChangedCommand } from "./commands/changed.js";
 import { runInitCommand } from "./commands/init.js";
 import { runInstallHookCommand } from "./commands/install-hook.js";
+import { runScanQualityCommand } from "./commands/scan-quality.js";
 import { runScanCommand } from "./commands/scan.js";
 import { runSyncCommand } from "./commands/sync.js";
 import { logger } from "./utils/logger.js";
@@ -32,6 +33,11 @@ program
   .action(wrap(async (options?: { manual?: boolean }) => runInitCommand(cwd, { manual: Boolean(options?.manual) })));
 
 program.command("scan").description("Scan and sync repository metadata").action(wrap(() => runScanCommand(cwd)));
+
+program
+  .command("scan-quality")
+  .description("Print compact scan metadata quality summary (no full JSON)")
+  .action(wrap(() => runScanQualityCommand(cwd)));
 
 program
   .command("changed")

@@ -22,8 +22,7 @@ function hasObviousSecrets(value: unknown): boolean {
     /-----BEGIN [A-Z ]+ PRIVATE KEY-----/i,
     /AKIA[0-9A-Z]{16}/,
     /xox[baprs]-[a-zA-Z0-9-]{10,}/,
-    /(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["'][^"']{6,}["']/i,
-    /\.env/i,
+    /(?:password|passwd|secret|api[_-]?key|token)\s*[:=]\s*["'][^"']{8,}["']/i,
   ];
 
   const serialized = JSON.stringify(value || {});

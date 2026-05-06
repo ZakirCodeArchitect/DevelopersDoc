@@ -6,6 +6,7 @@ import { InteractiveButton } from './InteractiveButton';
 import { DocTableOfContents, TocItem, PageLink } from './DocTableOfContents';
 import type { NavLink } from './DocNavigation';
 import type { ProcessedDocument, ProcessedProject, ProcessedYourDoc, ProcessedPage } from '@/lib/docs';
+import { sanitizeDocHtmlForViewer } from '@/lib/docs/sanitize-doc-html';
 import { isProject, isProjectDocument, isPage, getDocumentForPage } from '@/lib/docs';
 import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -160,6 +161,7 @@ const DocsPageContentComponent = ({
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [isLoadingSyncStatus, setIsLoadingSyncStatus] = useState(false);
+  const [regenerateBusy, setRegenerateBusy] = useState(false);
 
   const handleShareDocument = (documentId: string, documentName: string) => {
     setShareItemId(documentId);
@@ -503,12 +505,46 @@ npx developerdoc scan`}</pre>
                   syncStatus.generatedDocumentation?.documentId ? (
                     <div className="space-y-2">
                       <p className="text-sm text-gray-800">Generated documentation is ready for review.</p>
-                      <a
-                        href={`/docs/projects/${pageToRender.id}/${syncStatus.generatedDocumentation.documentId}`}
-                        className="inline-flex items-center text-xs font-medium text-[#CC561E] hover:text-[#B84A17] hover:underline"
-                      >
-                        Open {syncStatus.generatedDocumentation?.documentTitle || 'Generated Project Documentation'}
-                      </a>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <a
+                          href={`/docs/projects/${pageToRender.id}/${syncStatus.generatedDocumentation.documentId}`}
+                          className="inline-flex items-center text-xs font-medium text-[#CC561E] hover:text-[#B84A17] hover:underline"
+                        >
+                          Open {syncStatus.generatedDocumentation?.documentTitle || 'Generated Project Documentation'}
+                        </a>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!canEdit) return;
+                              setRegenerateBusy(true);
+                              try {
+                                const res = await fetch(
+                                  `/api/projects/${pageToRender.id}/regenerate-generated-docs`,
+                                  { method: 'POST' },
+                                );
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok) {
+                                  console.error(
+                                    'Regenerate generated docs failed:',
+                                    data?.error ?? res.status,
+                                  );
+                                  return;
+                                }
+                                router.refresh();
+                              } catch (e) {
+                                console.error('Regenerate generated docs error:', e);
+                              } finally {
+                                setRegenerateBusy(false);
+                              }
+                            }}
+                            disabled={regenerateBusy}
+                            className="text-xs font-medium text-gray-700 hover:text-gray-900 underline disabled:opacity-50"
+                          >
+                            {regenerateBusy ? 'Regenerating…' : 'Regenerate from latest scan'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <p className="text-xs text-gray-600">
@@ -1175,7 +1211,7 @@ npx developerdoc scan`}</pre>
                         <div 
                           className="prose prose-gray max-w-none preserve-whitespace"
                           dangerouslySetInnerHTML={{ 
-                            __html: page.sections[0].content.join('')
+                            __html: sanitizeDocHtmlForViewer(page.sections[0].content.join(''))
                           }}
                         />
                       )}
@@ -1208,7 +1244,7 @@ npx developerdoc scan`}</pre>
                           <div 
                             className="prose prose-gray max-w-none preserve-whitespace"
                             dangerouslySetInnerHTML={{ 
-                              __html: section.content.join('')
+                              __html: sanitizeDocHtmlForViewer(section.content.join(''))
                             }}
                           />
                         )}
