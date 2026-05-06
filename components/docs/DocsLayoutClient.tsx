@@ -10,6 +10,9 @@ import { useRenameDelete } from './useRenameDelete';
 import { NavigationProvider, DocsContentArea } from './NavigationContext';
 import { StableSidebar } from './StableSidebar';
 
+// Keep desktop sidebar state stable across client remounts during route transitions.
+let cachedSidebarCollapsed: boolean | null = null;
+
 interface DocsLayoutClientProps {
   sidebarItems: NavItem[];
   processedProjects: ProcessedProject[];
@@ -23,15 +26,39 @@ export function DocsLayoutClient({
   processedYourDocs,
   children,
 }: DocsLayoutClientProps) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [showExpandButton, setShowExpandButton] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(cachedSidebarCollapsed ?? false);
+  const [showExpandButton, setShowExpandButton] = useState(cachedSidebarCollapsed ?? false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const hasSearchData = processedProjects.length > 0 || processedYourDocs.length > 0;
+
+  // Hydration-safe restore: keep server/client initial markup identical,
+  // then sync persisted state before first paint on the client.
+  React.useLayoutEffect(() => {
+    if (cachedSidebarCollapsed !== null) {
+      setIsSidebarCollapsed(cachedSidebarCollapsed);
+      setShowExpandButton(cachedSidebarCollapsed);
+      return;
+    }
+    try {
+      const collapsed = localStorage.getItem('docs-left-sidebar-collapsed') === 'true';
+      cachedSidebarCollapsed = collapsed;
+      setIsSidebarCollapsed(collapsed);
+      setShowExpandButton(collapsed);
+    } catch {
+      // ignore storage failures
+    }
+  }, []);
   
   // CRITICAL: Memoize onToggleCollapse to prevent sidebar re-renders
   const handleToggleCollapse = useCallback(() => {
     setIsSidebarCollapsed(prev => {
       const newValue = !prev;
+      cachedSidebarCollapsed = newValue;
+      try {
+        localStorage.setItem('docs-left-sidebar-collapsed', String(newValue));
+      } catch {
+        // ignore storage failures
+      }
       
       // If collapsing, show expand button after animation completes (300ms)
       if (newValue) {
@@ -177,6 +204,12 @@ export function DocsLayoutClient({
               onClick={() => {
                 setShowExpandButton(false);
                 setIsSidebarCollapsed(false);
+                cachedSidebarCollapsed = false;
+                try {
+                  localStorage.setItem('docs-left-sidebar-collapsed', 'false');
+                } catch {
+                  // ignore storage failures
+                }
               }}
               className="fixed left-0 p-1.5 bg-white border border-gray-200 border-l-0 rounded-r-md hover:bg-gray-50 text-gray-600 hover:text-gray-900 shadow-sm z-20 hidden md:flex items-center justify-center transition-opacity duration-200"
               aria-label="Expand sidebar"

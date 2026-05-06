@@ -117,7 +117,10 @@ export const DocLayout: React.FC<DocLayoutProps> = ({
         logoText="Developers Doc"
         navLinks={navLinks}
       />
-      <div className="flex flex-1" style={{ fontFamily: 'var(--font-lilex), monospace' }}>
+      <div
+        className={`flex flex-1 min-w-0 ${tocItems.length > 0 ? 'lg:mr-64' : ''}`}
+        style={{ fontFamily: 'var(--font-lilex), monospace' }}
+      >
         <DocSidebar 
           items={sidebarItems} 
           currentPath={currentPath} 

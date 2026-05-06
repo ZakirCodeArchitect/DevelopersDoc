@@ -22,6 +22,9 @@ interface DocTableOfContentsProps {
   items: TocItem[];
   activeId?: string;
   className?: string;
+  inFlowDesktop?: boolean;
+  isDesktopCollapsed?: boolean;
+  onDesktopCollapsedChange?: (collapsed: boolean) => void;
   onAddPage?: () => void;
   onEditPage?: () => void;
   onShare?: () => void;
@@ -36,6 +39,9 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   items,
   activeId,
   className,
+  inFlowDesktop = false,
+  isDesktopCollapsed,
+  onDesktopCollapsedChange,
   onAddPage,
   onEditPage,
   onShare,
@@ -49,6 +55,7 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
   const router = useRouter();
   const [isActionsCollapsed, setIsActionsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [internalDesktopCollapsed, setInternalDesktopCollapsed] = useState(false);
   const prefetchedRef = useRef<Set<string>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const hoverScrollRafRef = useRef<number | null>(null);
@@ -62,6 +69,15 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
     },
     [router]
   );
+
+  const desktopCollapsed = isDesktopCollapsed ?? internalDesktopCollapsed;
+  const setDesktopCollapsed = (collapsed: boolean) => {
+    if (onDesktopCollapsedChange) {
+      onDesktopCollapsedChange(collapsed);
+      return;
+    }
+    setInternalDesktopCollapsed(collapsed);
+  };
 
   if (topLevelItems.length === 0 && !pages?.length && !onAddPage) {
     return null;
@@ -318,15 +334,42 @@ export const DocTableOfContents: React.FC<DocTableOfContentsProps> = ({
 
   return (
     <>
-      <aside
+      {!desktopCollapsed && (
+        <aside
+          className={cn(
+            'hidden lg:flex w-64 border-l border-gray-200 bg-gray-50',
+            inFlowDesktop
+              ? 'sticky top-16 h-[calc(100vh-4rem)] flex-col self-start shrink-0'
+              : 'fixed right-0 top-16 h-[calc(100vh-4rem)] flex-col',
+            className
+          )}
+        >
+          {sidebarContent}
+        </aside>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setDesktopCollapsed(!desktopCollapsed)}
         className={cn(
-          'hidden lg:flex w-64 border-l border-gray-200 bg-gray-50',
-          'fixed right-0 top-16 h-[calc(100vh-4rem)] flex-col',
-          className
+          'hidden lg:flex fixed top-1/2 -translate-y-1/2 z-30 items-center justify-center',
+          'h-9 w-6 rounded-l-md border border-r-0 border-gray-200 bg-white text-gray-600 shadow-sm',
+          'hover:bg-gray-50 hover:text-gray-900 transition-all duration-200',
+          desktopCollapsed ? 'right-0' : 'right-64'
         )}
+        aria-label={desktopCollapsed ? 'Expand table of contents' : 'Collapse table of contents'}
+        title={desktopCollapsed ? 'Expand table of contents' : 'Collapse table of contents'}
       >
-        {sidebarContent}
-      </aside>
+        {desktopCollapsed ? (
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        ) : (
+          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        )}
+      </button>
 
       <button
         type="button"

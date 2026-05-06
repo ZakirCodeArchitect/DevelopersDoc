@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { useCreateDoc } from './CreateDocHandler';
 import { useAddPage } from './AddPageHandler';
 import dynamic from 'next/dynamic';
+import { cn } from '@/lib/utils';
 
 // Dynamically import DocEditor to avoid SSR issues with Tiptap
 const DocEditor = dynamic(() => import('./DocEditor'), { ssr: false });
@@ -125,6 +126,7 @@ const DocsPageContentComponent = ({
   isOwner = false, // Default to false - only owners can publish
 }: DocsPageContentProps) => {
   const [activeTocId, setActiveTocId] = useState<string | undefined>();
+  const [isTocCollapsed, setIsTocCollapsed] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [optimisticPage, setOptimisticPage] = useState<ProcessedPage | null>(null);
   // Optimistic pages list for the current document - updates immediately when pages change
@@ -326,7 +328,7 @@ const DocsPageContentComponent = ({
   // If current page is a project, show project overview with document list
   if (isProject(pageToRender)) {
     return (
-      <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]">
+      <div className="flex flex-1 min-w-0 min-h-[calc(100vh-4rem)] lg:grid lg:grid-cols-[minmax(0,1fr)_16rem]">
         <DocContent
           title={pageToRender.title}
           lastUpdated={pageToRender.lastUpdated}
@@ -583,7 +585,7 @@ npx developerdoc scan`}</pre>
           </div>
         </DocContent>
         {/* Right Sidebar for Project Overview */}
-        <aside className="hidden lg:flex w-64 border-l border-gray-200 bg-gray-50 fixed right-0 top-16 h-[calc(100vh-4rem)] flex-col">
+        <aside className="hidden lg:flex w-64 border-l border-gray-200 bg-gray-50 sticky top-16 h-[calc(100vh-4rem)] flex-col self-start shrink-0">
           <div className="p-6 flex-1 overflow-y-auto modern-scrollbar">
             <h2 className="text-sm font-semibold text-gray-900 mb-6">Project Info</h2>
             <div className="space-y-6">
@@ -1143,14 +1145,19 @@ npx developerdoc scan`}</pre>
     const shouldHideTitle = isEditing || (isPageEmpty && (page.title === 'Untitled page' || !page.title));
     
     return (
-      <div className="flex flex-1 w-full min-h-[calc(100vh-4rem)]">
+      <div
+        className={cn(
+          "flex flex-1 min-w-0 min-h-[calc(100vh-4rem)] lg:grid",
+          isTocCollapsed ? "lg:grid-cols-[minmax(0,1fr)]" : "lg:grid-cols-[minmax(0,1fr)_16rem]"
+        )}
+      >
         <DocContent
           title={page.title}
           lastUpdated={document.lastUpdated}
           previous={page.navigation.previous || undefined}
           next={page.navigation.next || undefined}
           hideTitle={shouldHideTitle}
-          fullWidth={isEditing}
+          fullWidth={isEditing || isTocCollapsed}
         >
           {/* Show editor or content based on editing state */}
           {isEditing ? (
@@ -1280,6 +1287,9 @@ npx developerdoc scan`}</pre>
         <DocTableOfContents 
           items={tocItems} 
           activeId={activeTocId}
+          inFlowDesktop={true}
+          isDesktopCollapsed={isTocCollapsed}
+          onDesktopCollapsedChange={setIsTocCollapsed}
           onAddPage={() => handleAddPage(document.id, document.title, projectId)}
           onEditPage={() => setIsEditing(true)}
           onShare={currentPath.startsWith('/docs/published') ? undefined : () => handleShareDocument(document.id, document.title)}
