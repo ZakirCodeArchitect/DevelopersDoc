@@ -921,6 +921,52 @@ npx developerdoc scan`}</pre>
     // DOM check removed - no longer needed
   }, [page, isEditing, currentPath]);
 
+  const normalizeGeneratedMermaidSource = useCallback((source: string): string => {
+    // Normalize bracket labels that start with "/" (e.g. [/api/...]) into quoted labels.
+    // Mermaid can interpret leading "/" as special node-shape syntax and fail to parse.
+    return source.replace(/^(\s*[A-Za-z0-9_]+)\[\/([^\]]*)\]$/gm, (_m, nodeId: string, label: string) => {
+      return `${nodeId}["/${label}"]`;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mermaidBlocks = Array.from(
+      window.document.querySelectorAll('pre[data-generated-mermaid="true"]'),
+    ) as HTMLPreElement[];
+    if (mermaidBlocks.length === 0) return;
+
+    let cancelled = false;
+    import('mermaid')
+      .then((mod) => {
+        if (cancelled) return;
+        const mermaid = mod.default;
+        mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' });
+        mermaidBlocks.forEach(async (block, idx) => {
+          const rawSource = block.textContent ?? '';
+          const source = normalizeGeneratedMermaidSource(rawSource);
+          if (!source.trim()) return;
+          try {
+            const id = `generated-mermaid-${idx}-${Date.now()}`;
+            const rendered = await mermaid.render(id, source);
+            const wrapper = window.document.createElement('div');
+            wrapper.setAttribute('data-generated-mermaid-rendered', 'true');
+            wrapper.innerHTML = rendered.svg;
+            block.replaceWith(wrapper);
+          } catch {
+            block.setAttribute('data-generated-mermaid-fallback', 'true');
+          }
+        });
+      })
+      .catch(() => {
+        mermaidBlocks.forEach((block) => block.setAttribute('data-generated-mermaid-fallback', 'true'));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPath, pageToRender?.id, normalizeGeneratedMermaidSource]);
+
   // Get project info if it's a project document
   const { projectId, projectName } = useMemo(() => {
     if (!document) return { projectId: undefined, projectName: undefined };

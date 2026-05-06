@@ -35,7 +35,17 @@ export type FileClassification =
   | "deployment"
   | "unknown";
 
-export type EnvLikelyRequired = "likely_required" | "likely_optional" | "unknown";
+export type EnvLikelyRequired =
+  | "likely_required"
+  | "likely_optional"
+  | "required_for_webhook"
+  | "required_for_email_feature"
+  | "platform_provided"
+  | "runtime_provided"
+  | "optional_debug"
+  | "optional_cache"
+  | "feature_flag"
+  | "unknown";
 
 /** Safe env value presence — never stores actual values */
 export type EnvValueStatusClass =
@@ -78,6 +88,15 @@ export interface ApiRouteInfo {
   prismaOperations?: string[];
   importedServices?: string[];
   httpStatuses?: string[];
+  requestFields?: string[];
+  requestBodyFields?: string[];
+  queryParams?: string[];
+  headersUsed?: string[];
+  formDataFields?: string[];
+  validationSignals?: string[];
+  responseFields?: string[];
+  responseStatusCodes?: string[];
+  failureCases?: string[];
   sideEffectsNarrative?: string[];
   externalEffects?: string[];
   hasErrorHandling?: boolean;
@@ -389,27 +408,145 @@ export function extractHttpStatusesFromSource(source: string): string[] {
   return Array.from(found).sort();
 }
 
+function extractLikelyRequestFields(source: string): string[] {
+  const found = new Set<string>();
+
+  for (const m of source.matchAll(/(?:const|let|var)\s+\{([^}]+)\}\s*=\s*await\s+request\.json\s*\(\s*\)/g)) {
+    const fields = (m[1] ?? '')
+      .split(',')
+      .map((p) => p.trim().split(':')[0]?.trim())
+      .filter(Boolean);
+    fields.forEach((f) => found.add(f!));
+  }
+
+  for (const m of source.matchAll(/(?:const|let|var)\s+(\w+)\s*=\s*await\s+request\.json\s*\(\s*\)/g)) {
+    const bodyVar = m[1];
+    if (!bodyVar) continue;
+    const accessRe = new RegExp(`\\b${bodyVar}\\.(\\w+)\\b`, 'g');
+    for (const k of source.matchAll(accessRe)) {
+      if (k[1]) found.add(k[1]);
+    }
+  }
+
+  for (const m of source.matchAll(/searchParams\.get\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+    if (m[1]) found.add(`query.${m[1]}`);
+  }
+
+  for (const m of source.matchAll(/params\.([A-Za-z_][A-Za-z0-9_]*)/g)) {
+    if (m[1]) found.add(`param.${m[1]}`);
+  }
+
+  return Array.from(found).slice(0, 30);
+}
+
+function extractRequestDetails(source: string): {
+  bodyFields: string[];
+  queryParams: string[];
+  headersUsed: string[];
+  formDataFields: string[];
+  validationSignals: string[];
+} {
+  const bodyFields = new Set<string>();
+  const queryParams = new Set<string>();
+  const headersUsed = new Set<string>();
+  const formDataFields = new Set<string>();
+  const validationSignals = new Set<string>();
+
+  for (const m of source.matchAll(/await\s+(?:req|request)\.json\s*\(\s*\)/g)) {
+    if (m[0]) validationSignals.add("json-body-detected");
+  }
+  const jsonVars = new Set<string>();
+  for (const m of source.matchAll(/(?:const|let|var)\s+\{([^}]+)\}\s*=\s*await\s+(?:req|request)\.json\s*\(\s*\)/g)) {
+    const fields = (m[1] ?? "")
+      .split(",")
+      .map((p) => p.trim().split(":")[0]?.trim())
+      .filter(Boolean);
+    for (const f of fields) bodyFields.add(f!);
+  }
+  for (const m of source.matchAll(/(?:const|let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*await\s+(?:req|request)\.json\s*\(\s*\)/g)) {
+    if (m[1]) jsonVars.add(m[1]);
+  }
+  for (const bodyVar of jsonVars) {
+    const propRe = new RegExp(`\\b${bodyVar}\\.([A-Za-z_][A-Za-z0-9_]*)\\b`, "g");
+    for (const pm of source.matchAll(propRe)) {
+      if (pm[1]) bodyFields.add(pm[1]);
+    }
+    const destructRe = new RegExp(
+      `(?:const|let|var)\\s+\\{([^}]+)\\}\\s*=\\s*${bodyVar}\\b`,
+      "g",
+    );
+    for (const dm of source.matchAll(destructRe)) {
+      const fields = (dm[1] ?? "")
+        .split(",")
+        .map((p) => p.trim().split(":")[0]?.trim())
+        .filter(Boolean);
+      for (const f of fields) bodyFields.add(f!);
+    }
+  }
+  for (const m of source.matchAll(/searchParams\.get\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+    if (m[1]) queryParams.add(m[1]);
+  }
+  for (const m of source.matchAll(/new\s+URL\s*\(\s*request\.url\s*\)\.searchParams(?:\.get\(\s*['"]([^'"]+)['"]\s*\))?/g)) {
+    if (m[1]) queryParams.add(m[1]);
+    else validationSignals.add("url-searchparams-detected");
+  }
+  for (const m of source.matchAll(/headers\.get\s*\(\s*['"]([^'"]+)['"]\s*\)/gi)) {
+    if (m[1]) headersUsed.add(m[1].toLowerCase());
+  }
+  for (const m of source.matchAll(/(?:req|request)\.headers\.get\s*\(\s*['"]([^'"]+)['"]\s*\)/gi)) {
+    if (m[1]) headersUsed.add(m[1].toLowerCase());
+  }
+  if (/formData\s*\(\s*\)/.test(source)) {
+    validationSignals.add("form-data-detected");
+  }
+  for (const m of source.matchAll(/formData\.get\s*\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+    if (m[1]) formDataFields.add(m[1]);
+  }
+  if (/z\.object\s*\(/.test(source)) validationSignals.add("zod-object");
+  if (/\.safeParse\s*\(/.test(source)) validationSignals.add("safeParse");
+  if (/\.parse\s*\(/.test(source) && /schema|zod|validator/i.test(source)) validationSignals.add("parse-validation");
+
+  return {
+    bodyFields: Array.from(bodyFields).slice(0, 30),
+    queryParams: Array.from(queryParams).slice(0, 30),
+    headersUsed: Array.from(headersUsed).slice(0, 20),
+    formDataFields: Array.from(formDataFields).slice(0, 20),
+    validationSignals: Array.from(validationSignals).slice(0, 20),
+  };
+}
+
+function extractLikelyResponseFields(source: string): string[] {
+  const found = new Set<string>();
+  for (const m of source.matchAll(/(?:NextResponse|Response)\.json\s*\(\s*\{([\s\S]*?)\}\s*(?:,|\))/g)) {
+    const body = m[1] ?? '';
+    for (const key of body.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\s*:/g)) {
+      if (key[1]) found.add(key[1]);
+    }
+  }
+  return Array.from(found).slice(0, 30);
+}
+
 function inferAuthTypeForRoute(routePath: string, source: string, usesAuth: boolean): string {
   const p = routePath || "";
   const s = source;
-  if (/\/webhooks\//i.test(p) || (/\bsvix\b/i.test(s) && /webhook/i.test(s))) return "webhook secret (Svix)";
-  if (p.includes("/api/cli/scan") || p.includes("/api/cli/changes")) return "CLI sync bearer token";
-  if (p.includes("/api/cli/register") && !p.includes("register-from-auth")) return "Clerk session";
-  if (p.includes("/api/cli/register-from-auth")) return "CLI device auth token";
+  if (/\/api\/webhooks\//i.test(p) || (/\bsvix\b/i.test(s) && /webhook/i.test(s))) return "Webhook signature auth";
+  if (p.includes("/api/cli/scan") || p.includes("/api/cli/changes")) return "CLI sync bearer token auth";
+  if (p.includes("/api/cli/register") && !p.includes("register-from-auth")) return "Clerk session auth";
+  if (p.includes("/api/cli/register-from-auth")) return "CLI device/browser token auth";
   if (p.includes("/api/cli/auth/")) {
-    if (p.includes("/confirm")) return "Clerk session";
-    return "public (CLI device flow)";
+    if (p.includes("/confirm")) return "CLI device/browser auth";
+    return "CLI device/browser auth";
   }
-  if (p.startsWith("/api/published")) return "public";
+  if (p.startsWith("/api/published")) return "Public published access";
   if (
     usesAuth ||
     /\bgetCurrentUser\b/.test(s) ||
     /\bcurrentUser\s*\(/.test(s) ||
     /\bauth\s*\(\s*\)/.test(s)
   ) {
-    return "Clerk session";
+    return "Clerk session auth";
   }
-  return "unknown / verify handler";
+  return "Unknown / needs review";
 }
 
 function inferPurposeSummary(routePath: string, methods: string[], source: string): string {
@@ -535,14 +672,34 @@ export function enrichApiRouteForV3(info: ApiRouteInfo, source: string): ApiRout
   const notes: string[] = [];
   if (!info.methods.length) notes.push("No exported HTTP methods matched — check dynamic route exports.");
   const hasCatch = /\bcatch\s*\(/.test(source) || /try\s*\{/.test(source);
+  const requestDetails = extractRequestDetails(source);
+  const statusCodes = extractHttpStatusesFromSource(source);
+  const failureCases = new Set<string>();
+  if (/\bunauthori[sz]ed\b|\bforbidden\b/i.test(source)) failureCases.add("auth rejection");
+  if (/\bnot\s+found\b/i.test(source)) failureCases.add("not found");
+  if (/\btry\b[\s\S]*\bcatch\b/i.test(source)) failureCases.add("caught runtime failure");
+  if (statusCodes.includes("400") || statusCodes.includes("422")) failureCases.add("validation failure");
+  if (statusCodes.includes("500")) failureCases.add("internal error");
+
   return {
     ...info,
     authType: inferAuthTypeForRoute(info.routePath, source, info.usesAuth),
     purposeSummary: inferPurposeSummary(info.routePath, info.methods, source),
-    dbModelsTouched: Array.from(modelSet).slice(0, 20),
-    prismaOperations,
-    importedServices: inferImportedServices(info.importedModules),
-    httpStatuses: extractHttpStatusesFromSource(source),
+    dbModelsTouched: Array.from(new Set([...(info.dbModelsTouched ?? []), ...Array.from(modelSet)])).slice(0, 30),
+    prismaOperations: Array.from(new Set([...(info.prismaOperations ?? []), ...prismaOperations])).slice(0, 40),
+    importedServices: Array.from(
+      new Set([...(info.importedServices ?? []), ...inferImportedServices(info.importedModules)]),
+    ).slice(0, 30),
+    httpStatuses: statusCodes,
+    responseStatusCodes: statusCodes,
+    requestFields: extractLikelyRequestFields(source),
+    requestBodyFields: requestDetails.bodyFields,
+    queryParams: requestDetails.queryParams,
+    headersUsed: requestDetails.headersUsed,
+    formDataFields: requestDetails.formDataFields,
+    validationSignals: requestDetails.validationSignals,
+    responseFields: extractLikelyResponseFields(source),
+    failureCases: Array.from(failureCases).slice(0, 10),
     sideEffectsNarrative: side.narrative,
     externalEffects: side.external,
     hasErrorHandling: hasCatch,
@@ -692,7 +849,23 @@ export function looksSecretLike(name: string): boolean {
 
 export function envLikelyRequired(name: string, files: string[]): EnvLikelyRequired {
   const up = name.toUpperCase();
-  if (up === "DATABASE_URL" || up === "DIRECT_URL" || up.includes("AUTH_SECRET")) return "likely_required";
+  if (up === "VERCEL_URL") return "platform_provided";
+  if (up === "NODE_ENV") return "runtime_provided";
+  if (up === "WEBHOOK_SECRET" || up.includes("SVIX")) return "required_for_webhook";
+  if (up === "EMAIL_USER" || up === "EMAIL_PASS" || up.includes("SMTP")) return "required_for_email_feature";
+  if (up === "DEBUG_PRISMA_QUERIES" || up.startsWith("DEBUG_")) return "optional_debug";
+  if (up === "NAV_CACHE_SECONDS" || up === "PAGE_CACHE_SECONDS" || up.includes("CACHE")) return "optional_cache";
+  if (up === "DEVELOPERDOC_DOC_GEN_V2" || up === "DEVELOPERDOC_DOC_GEN_V3") return "feature_flag";
+  if (
+    up === "DATABASE_URL" ||
+    up === "DIRECT_URL" ||
+    up === "CLERK_SECRET_KEY" ||
+    up === "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY" ||
+    up === "NEXT_PUBLIC_APP_URL" ||
+    up.includes("AUTH_SECRET")
+  ) {
+    return "likely_required";
+  }
   const onlyTests = files.length > 0 && files.every((f) => f.includes(".test.") || f.includes(".spec.") || f.includes("__tests__"));
   if (onlyTests) return "likely_optional";
   return "unknown";

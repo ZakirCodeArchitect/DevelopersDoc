@@ -125,21 +125,28 @@ function generateYourDocHref(docId: string, pageId?: string): string {
 /**
  * Generate TOC items from document sections
  */
-function generateTocFromSections(sections: DocumentSection[]): TocItem[] {
+export function generateTocFromSections(sections: DocumentSection[]): TocItem[] {
   const tocItems: TocItem[] = [];
+  const seenIds = new Map<string, number>();
+  const getUniqueId = (rawId: string, fallback: string) => {
+    const base = (rawId || fallback || 'section')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    const count = seenIds.get(base) ?? 0;
+    seenIds.set(base, count + 1);
+    return count === 0 ? base : `${base}-${count + 1}`;
+  };
   
   sections.forEach((section) => {
     // If section has a title, it's an H2 section heading
     if (section.title && section.title.trim()) {
       // Generate ID from title
-      const id = section.title
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
+      const id = section.id || getUniqueId(section.title, 'section');
       
       tocItems.push({
-        id: id || section.id,
+        id,
         label: section.title,
         level: 1, // H2 = level 1 in TOC
       });
@@ -158,7 +165,7 @@ function generateTocFromSections(sections: DocumentSection[]): TocItem[] {
           
           // First, add headings with IDs
           for (const match of h3MatchesWithId) {
-            const id = match[1];
+            const id = getUniqueId(match[1], `h3-${tocItems.length}`);
             const label = match[2].replace(/<[^>]+>/g, '').trim(); // Strip HTML tags
             if (label && !addedH3Ids.has(id)) {
               tocItems.push({
@@ -179,11 +186,7 @@ function generateTocFromSections(sections: DocumentSection[]): TocItem[] {
             
             const label = match[1].replace(/<[^>]+>/g, '').trim(); // Strip HTML tags
             if (label) {
-              const id = label
-                .toLowerCase()
-                .trim()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-+|-+$/g, '') || `h3-${tocItems.length}`;
+              const id = getUniqueId(label, `h3-${tocItems.length}`);
               
               if (!addedH3Ids.has(id)) {
                 tocItems.push({
@@ -203,7 +206,7 @@ function generateTocFromSections(sections: DocumentSection[]): TocItem[] {
           
           // First, add headings with IDs
           for (const match of h4MatchesWithId) {
-            const id = match[1];
+            const id = getUniqueId(match[1], `h4-${tocItems.length}`);
             const label = match[2].replace(/<[^>]+>/g, '').trim(); // Strip HTML tags
             if (label && !addedH4Ids.has(id)) {
               tocItems.push({
@@ -224,11 +227,7 @@ function generateTocFromSections(sections: DocumentSection[]): TocItem[] {
             
             const label = match[1].replace(/<[^>]+>/g, '').trim(); // Strip HTML tags
             if (label) {
-              const id = label
-                .toLowerCase()
-                .trim()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-+|-+$/g, '') || `h4-${tocItems.length}`;
+              const id = getUniqueId(label, `h4-${tocItems.length}`);
               
               if (!addedH4Ids.has(id)) {
                 tocItems.push({

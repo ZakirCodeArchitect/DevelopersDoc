@@ -78,11 +78,29 @@ export interface ScanMetadata {
   deploymentFiles: string[];
   docsFiles: string[];
 
-  metadataVersion: 2 | 3;
+  metadataVersion: 2 | 3 | 4;
   filesByClassification: Partial<Record<FileClassification, string[]>>;
   apiRoutes: ApiRouteInfo[];
   envUsage: EnvUsageEntry[];
   packageScripts: PackageScriptsSummary;
+  packageScriptsAnalysis?: {
+    packages: Array<{
+      packagePath: string;
+      packageName: string;
+      scripts: Record<string, string>;
+      detectedDevScript?: string;
+      detectedBuildScript?: string;
+      detectedStartScript?: string;
+      detectedLintScript?: string;
+      detectedTestScript?: string;
+      detectedPrismaGenerateScript?: string;
+      detectedPrismaMigrateScript?: string;
+      detectedPrismaPushScript?: string;
+      detectedPrismaStudioScript?: string;
+      detectedSeedScript?: string;
+      detectedScannerScripts?: string[];
+    }>;
+  };
   prismaSchema?: PrismaSchemaSummary;
   importantDocs: DocFileSummary[];
   moduleMap: ModuleSummary[];
@@ -103,6 +121,176 @@ export interface ScanMetadata {
   riskAnalysis?: import("./scanner-v3.js").RiskAnalysisV3;
   generationHints?: import("./scanner-v3.js").GenerationHintsV3;
   scanQuality?: import("./scanner-v3.js").ScanQualitySummary;
+}
+
+type RouteTraceSummary = {
+  directPrismaOperations: string[];
+  transitivePrismaOperations: string[];
+  directModelsTouched: string[];
+  transitiveModelsTouched: string[];
+  serviceCalls: string[];
+  serviceFilesInspected: string[];
+  unresolvedImports: string[];
+  analysisDepth: number;
+  analysisLimitHit: boolean;
+  confidence: "high" | "medium" | "low";
+};
+
+const INTERNAL_EXTS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+const SKIP_IMPORT_PATH_RE = /(node_modules|\.next|\/dist\/|\/build\/|\/coverage\/)/i;
+
+async function resolveLocalImport(fromFileAbs: string, spec: string, cwd: string): Promise<string | null> {
+  if (spec.startsWith("@/")) {
+    const base = path.join(cwd, spec.slice(2));
+    for (const ext of INTERNAL_EXTS) {
+      const c = `${base}${ext}`;
+      if (existsSync(c)) return c;
+    }
+    for (const ext of INTERNAL_EXTS) {
+      const c = path.join(base, `index${ext}`);
+      if (existsSync(c)) return c;
+    }
+    return null;
+  }
+  if (spec.startsWith(".") || spec.startsWith("..")) {
+    const base = path.resolve(path.dirname(fromFileAbs), spec);
+    for (const ext of INTERNAL_EXTS) {
+      const c = `${base}${ext}`;
+      if (existsSync(c)) return c;
+    }
+    for (const ext of INTERNAL_EXTS) {
+      const c = path.join(base, `index${ext}`);
+      if (existsSync(c)) return c;
+    }
+    if (existsSync(base)) return base;
+    return null;
+  }
+  if (spec.startsWith("lib/") || spec.startsWith("app/") || spec.startsWith("packages/") || spec.startsWith("src/")) {
+    const base = path.join(cwd, spec);
+    for (const ext of INTERNAL_EXTS) {
+      const c = `${base}${ext}`;
+      if (existsSync(c)) return c;
+    }
+    for (const ext of INTERNAL_EXTS) {
+      const c = path.join(base, `index${ext}`);
+      if (existsSync(c)) return c;
+    }
+  }
+  return null;
+}
+
+function normalizeModelName(raw: string): string {
+  const key = raw.trim();
+  const map: Record<string, string> = {
+    project: "Project",
+    document: "Document",
+    page: "Page",
+    section: "Section",
+    docsyncsnapshot: "DocSyncSnapshot",
+    docsyncproject: "DocSyncProject",
+    docsyncchange: "DocSyncChange",
+    docaisuggestion: "DocAISuggestion",
+    cliauthsession: "CliAuthSession",
+    publisheddocument: "PublishedDocument",
+    share: "Share",
+    user: "User",
+  };
+  return map[key.toLowerCase()] ?? (key[0] ? key[0].toUpperCase() + key.slice(1) : key);
+}
+
+function modelsFromOps(ops: string[]): string[] {
+  const out = new Set<string>();
+  for (const op of ops) {
+    const model = op.split(".")[0];
+    if (!model) continue;
+    out.add(normalizeModelName(model));
+  }
+  return Array.from(out);
+}
+
+async function traceRouteServices(
+  routeFileAbs: string,
+  routeSource: string,
+  cwd: string,
+  maxDepth = 2,
+  maxFiles = 16,
+): Promise<RouteTraceSummary> {
+  const directPrismaOperations = Array.from(new Set(detectPrismaOps(routeSource)));
+  const directModelsTouched = modelsFromOps(directPrismaOperations);
+  const transitivePrisma = new Set<string>();
+  const transitiveModels = new Set<string>();
+  const serviceCalls = new Set<string>();
+  const serviceFilesInspected = new Set<string>();
+  const unresolvedImports = new Set<string>();
+
+  const queue: Array<{ fileAbs: string; depth: number }> = [{ fileAbs: routeFileAbs, depth: 0 }];
+  const visited = new Set<string>();
+  let analysisLimitHit = false;
+
+  while (queue.length) {
+    const next = queue.shift()!;
+    if (visited.has(next.fileAbs)) continue;
+    visited.add(next.fileAbs);
+    if (visited.size > maxFiles) {
+      analysisLimitHit = true;
+      break;
+    }
+    const content =
+      next.depth === 0 && next.fileAbs === routeFileAbs
+        ? routeSource
+        : await readFile(next.fileAbs, "utf8").catch(() => "");
+    if (!content || Buffer.byteLength(content, "utf8") > SEMANTIC_LIMITS.MAX_ROUTE_FILE_BYTES) continue;
+    if (next.depth > 0) {
+      serviceFilesInspected.add(normalizeSeparators(path.relative(cwd, next.fileAbs)));
+      for (const op of detectPrismaOps(content)) {
+        transitivePrisma.add(op);
+      }
+    }
+    for (const model of modelsFromOps(Array.from(transitivePrisma))) transitiveModels.add(model);
+    if (next.depth >= maxDepth) continue;
+    const imports = extractImportedModuleSpecifiers(content);
+    for (const spec of imports) {
+      if (!(spec.startsWith(".") || spec.startsWith("@/") || /^(lib|app|packages|src)\//.test(spec))) continue;
+      const resolved = await resolveLocalImport(next.fileAbs, spec, cwd);
+      if (!resolved) {
+        unresolvedImports.add(spec);
+        continue;
+      }
+      if (SKIP_IMPORT_PATH_RE.test(normalizeSeparators(resolved))) continue;
+      serviceCalls.add(spec);
+      queue.push({ fileAbs: resolved, depth: next.depth + 1 });
+    }
+  }
+
+  const confidence: "high" | "medium" | "low" = analysisLimitHit
+    ? "medium"
+    : transitivePrisma.size > 0
+      ? "high"
+      : directPrismaOperations.length > 0
+        ? "medium"
+        : "low";
+
+  return {
+    directPrismaOperations,
+    transitivePrismaOperations: Array.from(transitivePrisma),
+    directModelsTouched,
+    transitiveModelsTouched: Array.from(transitiveModels),
+    serviceCalls: Array.from(serviceCalls).slice(0, 30),
+    serviceFilesInspected: Array.from(serviceFilesInspected).slice(0, maxFiles),
+    unresolvedImports: Array.from(unresolvedImports).slice(0, 30),
+    analysisDepth: maxDepth,
+    analysisLimitHit,
+    confidence,
+  };
+}
+
+function detectPrismaOps(source: string): string[] {
+  const out = new Set<string>();
+  for (const m of source.matchAll(/\b(?:prisma|tx)\.([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)\b/g)) {
+    if (m[1] && m[2]) out.add(`${m[1]}.${m[2]}`);
+  }
+  if (/\b(?:prisma|tx)\.\$transaction\b/.test(source)) out.add("transaction");
+  return Array.from(out);
 }
 
 function detectFramework(dependencies: Record<string, string> | undefined): string {
@@ -270,6 +458,69 @@ function buildSetupHints(params: {
   };
 }
 
+function matchScriptKey(scripts: Record<string, string>, orderedKeys: string[], valuePatterns: RegExp[] = []): string | undefined {
+  for (const key of orderedKeys) {
+    if (scripts[key]) return key;
+    const ci = Object.keys(scripts).find((k) => k.toLowerCase() === key.toLowerCase());
+    if (ci) return ci;
+  }
+  if (valuePatterns.length > 0) {
+    for (const [key, value] of Object.entries(scripts)) {
+      if (valuePatterns.some((r) => r.test(value))) return key;
+    }
+  }
+  return undefined;
+}
+
+async function analyzePackageScripts(cwd: string): Promise<NonNullable<ScanMetadata["packageScriptsAnalysis"]>> {
+  const packageJsonPaths = [
+    "package.json",
+    ...(await fg("packages/*/package.json", { cwd, onlyFiles: true, ignore: IGNORED })),
+  ];
+  const packages: NonNullable<ScanMetadata["packageScriptsAnalysis"]>["packages"] = [];
+  for (const rel of packageJsonPaths) {
+    const abs = path.join(cwd, rel);
+    const raw = await readFile(abs, "utf8").catch(() => "");
+    if (!raw) continue;
+    const pkg = JSON.parse(raw) as { name?: string; scripts?: Record<string, string> };
+    const scripts = pkg.scripts ?? {};
+    const detectedScannerScripts = Object.keys(scripts).filter((k) => /scan|docgen|developerdoc/i.test(k));
+    packages.push({
+      packagePath: normalizeSeparators(rel),
+      packageName: pkg.name ?? path.dirname(rel),
+      scripts,
+      detectedDevScript: matchScriptKey(scripts, ["dev"]),
+      detectedBuildScript: matchScriptKey(scripts, ["build"]),
+      detectedStartScript: matchScriptKey(scripts, ["start"]),
+      detectedLintScript: matchScriptKey(scripts, ["lint"]),
+      detectedTestScript: matchScriptKey(scripts, ["test"]),
+      detectedPrismaGenerateScript: matchScriptKey(
+        scripts,
+        ["db:generate", "prisma:generate", "generate"],
+        [/prisma\s+generate/i],
+      ),
+      detectedPrismaMigrateScript: matchScriptKey(
+        scripts,
+        ["db:migrate", "prisma:migrate", "migrate"],
+        [/prisma\s+migrate\s+dev/i, /prisma\s+migrate\s+deploy/i],
+      ),
+      detectedPrismaPushScript: matchScriptKey(
+        scripts,
+        ["db:push", "prisma:push"],
+        [/prisma\s+db\s+push/i],
+      ),
+      detectedPrismaStudioScript: matchScriptKey(
+        scripts,
+        ["db:studio", "prisma:studio"],
+        [/prisma\s+studio/i],
+      ),
+      detectedSeedScript: matchScriptKey(scripts, ["seed", "db:seed"], [/prisma\s+db\s+seed/i]),
+      detectedScannerScripts: detectedScannerScripts.length ? detectedScannerScripts : undefined,
+    });
+  }
+  return { packages };
+}
+
 async function loadImportantDocs(cwd: string, candidatePaths: string[]): Promise<DocFileSummary[]> {
   const scored = candidatePaths.map((p) => {
     const lower = p.toLowerCase();
@@ -351,6 +602,7 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
   if (prismaSeedCommand && !packageScripts.seed) {
     packageScripts = { ...packageScripts, seed: prismaSeedCommand };
   }
+  const packageScriptsAnalysis = await analyzePackageScripts(cwd);
 
   const fileTree = await fg(["**/*"], {
     cwd,
@@ -431,6 +683,9 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
       mergeEnvUsage(envUsageMap, name, rel);
     }
 
+    const trace = await traceRouteServices(abs, content, cwd, 2, 18);
+    const allOps = Array.from(new Set([...trace.directPrismaOperations, ...trace.transitivePrismaOperations]));
+    const allModels = Array.from(new Set([...trace.directModelsTouched, ...trace.transitiveModelsTouched]));
     const base: ApiRouteInfo = {
       filePath: normalizeSeparators(rel),
       routePath,
@@ -440,6 +695,19 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
       usesPrisma: detectPrismaUsage(content, importedModules),
       usesAuth: detectAuthUsage(content, importedModules),
       purpose: inferPurposeFromRoute(rel, methods, content),
+      prismaOperations: allOps,
+      dbModelsTouched: allModels,
+      importedServices: trace.serviceFilesInspected,
+      analysisNotes: [
+        `analysisDepth=${trace.analysisDepth}`,
+        ...(trace.analysisLimitHit ? ["analysisLimitHit=true"] : []),
+        ...(trace.unresolvedImports.length ? [`unresolvedImports=${trace.unresolvedImports.join(", ")}`] : []),
+      ],
+      analysisConfidence: trace.confidence,
+      sideEffectsNarrative:
+        trace.transitivePrismaOperations.length > 0
+          ? ["service-level database side effects detected"]
+          : undefined,
     };
     apiRoutes.push(enrichApiRouteForV3(base, content));
   }
@@ -550,6 +818,7 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
   const hasCliPackage = existsSync(path.join(cwd, "packages/developerdoc-cli/package.json"));
   const scanFileCapHit = scanCandidates.length > MAX_SCAN_FILES;
   const framework = detectFramework(dependenciesMap);
+  const rootPkgScripts = packageScriptsAnalysis.packages.find((p) => p.packagePath === "package.json");
   const hasClerk =
     depsList.some((d) => d.toLowerCase().includes("clerk")) ||
     devDepsList.some((d) => d.toLowerCase().includes("clerk"));
@@ -591,6 +860,8 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
     flows: runtimeFlows,
     missingDotEnvExample,
     warningsCount,
+    metadataVersion: 4,
+    packageScriptsAnalysis,
   });
 
   const setupPlan = buildSetupPlanV3({
@@ -609,6 +880,9 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
     prismaUrlEnv: prismaSchema?.datasourceUrlEnv,
     prismaDirectEnv: prismaSchema?.datasourceDirectUrlEnv,
     hasCliPackage,
+    devScriptName: rootPkgScripts?.detectedDevScript ?? null,
+    buildScriptName: rootPkgScripts?.detectedBuildScript ?? null,
+    startScriptName: rootPkgScripts?.detectedStartScript ?? null,
   });
 
   const runtimeSurfaces = [
@@ -643,11 +917,12 @@ export async function scanMetadata(cwd: string): Promise<ScanMetadata> {
     deploymentFiles: deploymentFiles.slice(0, MAX_FILE_TREE_ITEMS),
     docsFiles: docsFiles.slice(0, MAX_FILE_TREE_ITEMS),
 
-    metadataVersion: 3,
+    metadataVersion: 4,
     filesByClassification,
     apiRoutes,
     envUsage,
     packageScripts,
+    packageScriptsAnalysis,
     prismaSchema,
     importantDocs,
     moduleMap,

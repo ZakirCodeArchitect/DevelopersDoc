@@ -3,7 +3,7 @@ import type { ApiRouteInfo, AuthProxyAnalysis, EnvUsageEntry, ModuleSummary, Pri
 export type Confidence = "high" | "medium" | "low";
 
 export interface ScanQualitySummary {
-  metadataVersion: 3;
+  metadataVersion: 3 | 4;
   filesScannedCap: number;
   filesScanned: number;
   scanFileCapHit: boolean;
@@ -19,6 +19,15 @@ export interface ScanQualitySummary {
   modulesCount: number;
   runtimeFlowsCount: number;
   warningsCount: number;
+  serviceTracedRoutesCount?: number;
+  routesWithUnresolvedServiceImports?: number;
+  routesWithRequestBodyFieldsDetected?: number;
+  routesWithResponseShapeDetected?: number;
+  routesWithAuthClassification?: number;
+  routesWithUnknownAuth?: number;
+  modelLifecycleCoveragePercent?: number;
+  riskyScriptsDetected?: string[];
+  mermaidSupport?: "enabled" | "disabled";
 }
 
 export interface ProjectSummaryV3 {
@@ -74,6 +83,7 @@ export interface SetupPlanV3 {
   authSteps: string[];
   emailNotes: string[];
   runLocally: string[];
+  runLocallyNotes?: string[];
   cliLocalTest?: string[];
   verification: string[];
   troubleshooting: string[];
@@ -130,7 +140,6 @@ export function buildPrismaAnalysisV3(
     warnings.push("No prisma/migrations folder detected — team may use db push or migrations live elsewhere.");
   }
 
-  const routeBlob = apiRoutes.map((r) => `${r.routePath} ${r.filePath}`).join("\n");
   const models: PrismaModelAnalysisV3[] = (prisma?.models ?? []).slice(0, 80).map((m) => {
     const lower = m.name.toLowerCase();
     const used = apiRoutes
@@ -172,7 +181,13 @@ export function buildAuthAnalysisV3(proxy: AuthProxyAnalysis | undefined, apiRou
   const published = apiRoutes.filter((r) => r.routePath.startsWith("/api/published")).map((r) => r.routePath);
 
   const webRoutes = apiRoutes
-    .filter((r) => r.authType === "Clerk session" || (r.usesAuth && !r.routePath.includes("/api/cli/auth")))
+    .filter(
+      (r) =>
+        (r.authType === "Clerk session" || r.authType === "Clerk session auth" || r.usesAuth) &&
+        !r.routePath.includes("/api/cli/") &&
+        !r.routePath.includes("/api/webhooks/") &&
+        !r.routePath.startsWith("/api/published"),
+    )
     .map((r) => r.routePath);
 
   if (!proxy) {
@@ -315,7 +330,7 @@ export function buildRiskAnalysisV3(input: {
 
   if (!input.packageJsonHasTestScript) {
     items.push({
-      severity: "info",
+      severity: "recommended_improvement",
       title: "No root test script",
       detail: "Consider adding automated tests at repo root for CI confidence.",
     });
@@ -344,6 +359,9 @@ export function buildSetupPlanV3(input: {
   prismaUrlEnv?: string;
   prismaDirectEnv?: string;
   hasCliPackage: boolean;
+  devScriptName?: string | null;
+  buildScriptName?: string | null;
+  startScriptName?: string | null;
 }): SetupPlanV3 {
   const dbSteps: string[] = [];
   if (input.prismaUrlEnv) dbSteps.push(`Set ${input.prismaUrlEnv} and ${input.prismaDirectEnv ?? "DIRECT_URL"} for PostgreSQL.`);
@@ -384,7 +402,12 @@ export function buildSetupPlanV3(input: {
     emailNotes: input.emailDetected
       ? ["EMAIL_USER / EMAIL_PASS (or provider-specific vars) only needed when testing outbound mail."]
       : [],
-    runLocally: input.devCmd ? [input.devCmd, "Open http://localhost:3000 (or port shown in terminal)."] : ["npm run dev"],
+    runLocally: input.devScriptName
+      ? [`npm run ${input.devScriptName}`, "Open http://localhost:3000 (or port shown in terminal)."]
+      : input.devCmd
+        ? [input.devCmd, "Open http://localhost:3000 (or port shown in terminal)."]
+        : ["npm run dev"],
+    runLocallyNotes: input.devScriptName && input.devCmd ? [`runs: ${input.devCmd}`] : undefined,
     cliLocalTest: cliLocal,
     verification: [
       "Sign in, create a project, link CLI, run scan.",
@@ -435,6 +458,13 @@ export function buildScanQuality(input: {
   flows: RuntimeFlowV3[];
   missingDotEnvExample: boolean;
   warningsCount: number;
+  metadataVersion?: 3 | 4;
+  packageScriptsAnalysis?: {
+    packages: Array<{
+      packagePath: string;
+      scripts: Record<string, string>;
+    }>;
+  };
 }): ScanQualitySummary {
   const scanFileCapHit = input.filesScanned >= input.cap;
   const publicApi = input.apiRoutes.filter((r) => r.authType?.toLowerCase().startsWith("public")).length;
@@ -443,8 +473,35 @@ export function buildScanQuality(input: {
     (r.prismaOperations ?? []).some((op) => /\.(create|update|upsert|delete|deleteMany)$/i.test(op)),
   ).length;
 
+  const serviceTracedRoutesCount = input.apiRoutes.filter((r) => (r.importedServices?.length ?? 0) > 0).length;
+  const routesWithUnresolvedServiceImports = input.apiRoutes.filter((r) =>
+    (r.analysisNotes ?? []).some((n) => n.startsWith("unresolvedImports=")),
+  ).length;
+  const routesWithRequestBodyFieldsDetected = input.apiRoutes.filter((r) => (r.requestBodyFields?.length ?? 0) > 0).length;
+  const routesWithResponseShapeDetected = input.apiRoutes.filter((r) => (r.responseFields?.length ?? 0) > 0).length;
+  const routesWithAuthClassification = input.apiRoutes.filter((r) => Boolean(r.authType)).length;
+  const routesWithUnknownAuth = input.apiRoutes.filter((r) =>
+    String(r.authType ?? "").toLowerCase().includes("unknown"),
+  ).length;
+  const riskyScriptsDetected: string[] = [];
+  for (const pkg of input.packageScriptsAnalysis?.packages ?? []) {
+    for (const [key, val] of Object.entries(pkg.scripts)) {
+      if (/build/i.test(key) && /\|\|\s*true/.test(val)) riskyScriptsDetected.push(`${pkg.packagePath}:${key}`);
+    }
+  }
+  const modelLifecycleCoveragePercent =
+    (input.prisma?.models?.length ?? 0) > 0
+      ? Math.round(
+          (input.prisma!.models.filter((m) =>
+            input.apiRoutes.some((r) => (r.dbModelsTouched ?? []).some((x) => x.toLowerCase() === m.name.toLowerCase())),
+          ).length /
+            input.prisma!.models.length) *
+            100,
+        )
+      : 0;
+
   return {
-    metadataVersion: 3,
+    metadataVersion: input.metadataVersion ?? 3,
     filesScannedCap: input.cap,
     filesScanned: input.filesScanned,
     scanFileCapHit,
@@ -460,6 +517,15 @@ export function buildScanQuality(input: {
     modulesCount: input.modules.length,
     runtimeFlowsCount: input.flows.length,
     warningsCount: input.warningsCount,
+    serviceTracedRoutesCount,
+    routesWithUnresolvedServiceImports,
+    routesWithRequestBodyFieldsDetected,
+    routesWithResponseShapeDetected,
+    routesWithAuthClassification,
+    routesWithUnknownAuth,
+    modelLifecycleCoveragePercent,
+    riskyScriptsDetected,
+    mermaidSupport: "enabled",
   };
 }
 
