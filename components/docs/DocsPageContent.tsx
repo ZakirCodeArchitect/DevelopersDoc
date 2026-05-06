@@ -454,12 +454,19 @@ const DocsPageContentComponent = ({
           <div className="mt-10 border border-gray-200 rounded-lg bg-gray-50 p-6">
             <div className="flex items-center justify-between gap-3 mb-4">
               <h2 className="text-2xl font-bold text-gray-900">Sync</h2>
-              {isLoadingSyncStatus && (
-                <span className="text-xs text-gray-500">Loading...</span>
-              )}
             </div>
 
-            {!syncStatus?.connected ? (
+            {isLoadingSyncStatus ? (
+              <div className="space-y-4 animate-pulse">
+                <div className="h-4 w-40 rounded bg-gray-200" />
+                <div className="rounded-md border border-dashed border-gray-300 bg-white p-4 space-y-3">
+                  <div className="h-3 w-44 rounded bg-gray-200" />
+                  <div className="h-3 w-full rounded bg-gray-100" />
+                  <div className="h-3 w-4/5 rounded bg-gray-100" />
+                  <div className="h-3 w-2/3 rounded bg-gray-100" />
+                </div>
+              </div>
+            ) : !syncStatus?.connected ? (
               <div className="space-y-4">
                 <p className="text-sm text-gray-700">No codebase connected yet.</p>
                 <div className="rounded-md border border-dashed border-gray-300 bg-white p-4">
