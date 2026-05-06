@@ -1,19 +1,31 @@
 {
-  "name": "developerdoc",
+  "name": "@developersdoc/cli",
   "version": "0.1.0",
-  "description": "Developerdoc sync CLI",
+  "description": "DevelopersDoc sync CLI",
   "type": "module",
   "bin": {
-    "developerdoc": "./dist/index.js"
+    "developersdoc": "./bin/index.js"
   },
   "main": "./dist/index.js",
+  "files": [
+    "bin",
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/index.ts",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test src/**/*.test.ts",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "developerdoc",
+    "developersdoc",
     "cli",
     "sync"
   ],

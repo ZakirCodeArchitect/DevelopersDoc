@@ -11,7 +11,7 @@ export async function runChangedCommand(cwd: string, silent = false): Promise<vo
 
   if (!fromCommit) {
     if (!silent) {
-      logger.warn("No lastSyncedCommit found. Run `developerdoc scan` first.");
+      logger.warn("No lastSyncedCommit found. Run `developersdoc scan` first.");
     }
     await sendChanges(config, {
       changedFiles: [],

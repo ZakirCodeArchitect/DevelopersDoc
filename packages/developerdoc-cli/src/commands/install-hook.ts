@@ -2,10 +2,10 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { logger } from "../utils/logger.js";
 
-const START_MARKER = "# >>> developerdoc";
-const END_MARKER = "# <<< developerdoc";
+const START_MARKER = "# >>> developersdoc";
+const END_MARKER = "# <<< developersdoc";
 const HOOK_CONTENT = `${START_MARKER}
-npx developerdoc changed --silent
+npx developersdoc changed --silent
 ${END_MARKER}`;
 
 export async function runInstallHookCommand(cwd: string): Promise<void> {

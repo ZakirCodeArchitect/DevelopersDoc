@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { runChangedCommand } from "./commands/changed.js";
 import { runInitCommand } from "./commands/init.js";
 import { runInstallHookCommand } from "./commands/install-hook.js";
+import { runLoginCommand } from "./commands/login.js";
 import { runScanQualityCommand } from "./commands/scan-quality.js";
 import { runScanCommand } from "./commands/scan.js";
 import { runSyncCommand } from "./commands/sync.js";
@@ -24,13 +25,15 @@ function wrap<TArgs extends unknown[]>(action: (...args: TArgs) => Promise<void>
   };
 }
 
-program.name("developerdoc").description("Developerdoc sync CLI").version("0.1.0");
+program.name("developersdoc").description("DevelopersDoc sync CLI").version("0.1.0");
 
 program
   .command("init")
   .description("Register and initialize project sync")
   .option("--manual", "Use the legacy manual projectId init flow")
   .action(wrap(async (options?: { manual?: boolean }) => runInitCommand(cwd, { manual: Boolean(options?.manual) })));
+
+program.command("login").description("Authenticate with DevelopersDoc").action(wrap(() => runLoginCommand()));
 
 program.command("scan").description("Scan and sync repository metadata").action(wrap(() => runScanCommand(cwd)));
 
@@ -53,7 +56,7 @@ program
 
 program
   .command("install-hook")
-  .description("Install git post-commit hook for developerdoc")
+  .description("Install git post-commit hook for developersdoc")
   .action(wrap(() => runInstallHookCommand(cwd)));
 
 await program.parseAsync(process.argv);

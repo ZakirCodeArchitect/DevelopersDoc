@@ -32,7 +32,7 @@ async function parseSuccess<TResponse>(response: Response): Promise<TResponse> {
   const snippet = raw.slice(0, 120).replace(/\s+/g, " ").trim();
   throw new Error(
     `Request failed: Expected JSON but got non-JSON response (status ${response.status}). ` +
-      `Check that Developerdoc app URL is correct and server is running. Response starts with: ${snippet || "empty body"}`,
+      `Check that DevelopersDoc app URL is correct and server is running. Response starts with: ${snippet || "empty body"}`,
   );
 }
 

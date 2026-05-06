@@ -33,7 +33,7 @@ export async function runScanCommand(cwd: string, options: RunScanOptions = {}):
     const message = error instanceof Error ? error.message : "Unknown scan error";
     if (message.includes("Invalid sync credentials")) {
       throw new Error(
-        "Your local CLI link is no longer valid (project was likely deleted/unlinked). Run `developerdoc init` again.",
+        "Your local CLI link is no longer valid (project was likely deleted/unlinked). Run `developersdoc init` again.",
       );
     }
     if (message.includes("Database temporarily unavailable")) {

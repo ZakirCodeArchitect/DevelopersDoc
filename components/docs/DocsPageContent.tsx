@@ -472,10 +472,13 @@ const DocsPageContentComponent = ({
               <div className="space-y-4">
                 <p className="text-sm text-gray-700">No codebase connected yet.</p>
                 <div className="rounded-md border border-dashed border-gray-300 bg-white p-4">
-                  <p className="text-xs font-medium text-gray-600 mb-2">Setup commands (coming soon)</p>
-                  <pre className="text-xs text-gray-700 overflow-x-auto">{`npm install --save-dev developerdoc
-npx developerdoc init
-npx developerdoc scan`}</pre>
+                  <p className="text-xs font-medium text-gray-600 mb-2">Setup commands</p>
+                  <pre className="text-xs text-gray-700 overflow-x-auto">{`npm install --save-dev @developersdoc/cli
+npx developersdoc init
+npx developersdoc scan
+
+# one-time usage
+npx @developersdoc/cli init`}</pre>
                 </div>
               </div>
             ) : (

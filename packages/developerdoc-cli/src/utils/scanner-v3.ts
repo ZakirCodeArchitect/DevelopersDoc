@@ -222,7 +222,7 @@ export function buildRuntimeFlowsV3(apiRoutes: ApiRouteInfo[]): RuntimeFlowV3[] 
     flows.push({
       name: "CLI init / link",
       steps: [
-        "Entry: developerdoc init — writes .developerdoc/config.json.",
+        "Entry: developersdoc init — writes .developerdoc/config.json.",
         "Optional: browser/device auth hits /api/cli/auth/* then /api/cli/register-from-auth.",
         "Or: POST /api/cli/register under Clerk session returns one-time sync token.",
       ],
@@ -231,7 +231,7 @@ export function buildRuntimeFlowsV3(apiRoutes: ApiRouteInfo[]): RuntimeFlowV3[] 
     flows.push({
       name: "CLI scan",
       steps: [
-        "Entry: developerdoc scan — scanMetadata locally.",
+        "Entry: developersdoc scan — scanMetadata locally.",
         "POST /api/cli/scan with bearer/body token → validateSyncToken → DocSyncSnapshot.create.",
         "May call generateInitialDocumentationForSyncProject on first snapshot (single generated doc per project).",
       ],
@@ -376,7 +376,7 @@ export function buildSetupPlanV3(input: {
         "npm run build",
         "npm run test",
         "npm link",
-        "Run `developerdoc` from a sample repo",
+        "Run `developersdoc` from a sample repo",
       ]
     : undefined;
 

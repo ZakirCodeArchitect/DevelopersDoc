@@ -32,7 +32,7 @@ async function ensureRepositoryRoot(cwd: string): Promise<void> {
   try {
     await stat(gitPath);
   } catch {
-    throw new Error("Run `developerdoc init` from the root of your target codebase (a folder with .git).");
+    throw new Error("Run `developersdoc init` from the root of your target codebase (a folder with .git).");
   }
 }
 
@@ -108,8 +108,8 @@ export async function runInitCommand(cwd: string, options: InitOptions = {}): Pr
       {
         type: "text",
         name: "apiUrl",
-        message: "Developerdoc app URL",
-        initial: "http://localhost:3000",
+        message: "DevelopersDoc app URL",
+        initial: "https://developersdoc.com",
       },
       {
         type: "text",
@@ -132,7 +132,7 @@ export async function runInitCommand(cwd: string, options: InitOptions = {}): Pr
     },
   );
 
-  const apiUrl = response.apiUrl ?? "http://localhost:3000";
+  const apiUrl = response.apiUrl ?? "https://developersdoc.com";
   const projectName = (response.projectName || defaultRepoName) as string;
   const privacyMode = (response.privacyMode || "safe") as "safe";
 
@@ -169,10 +169,10 @@ export async function runInitCommand(cwd: string, options: InitOptions = {}): Pr
           break;
         }
         if (result.status === "expired") {
-          throw new Error("Authorization session expired. Run `developerdoc init` again.");
+          throw new Error("Authorization session expired. Run `developersdoc init` again.");
         }
         if (result.status === "used") {
-          throw new Error("Authorization session already used. Run `developerdoc init` again.");
+          throw new Error("Authorization session already used. Run `developersdoc init` again.");
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown polling error";
@@ -180,10 +180,10 @@ export async function runInitCommand(cwd: string, options: InitOptions = {}): Pr
           throw new Error("Invalid device code for auth session.");
         }
         if (message.includes("HTTP 410")) {
-          throw new Error("Authorization session expired. Run `developerdoc init` again.");
+          throw new Error("Authorization session expired. Run `developersdoc init` again.");
         }
         if (message.includes("HTTP 409")) {
-          throw new Error("Authorization session already used. Run `developerdoc init` again.");
+          throw new Error("Authorization session already used. Run `developersdoc init` again.");
         }
         throw error;
       }
@@ -192,7 +192,7 @@ export async function runInitCommand(cwd: string, options: InitOptions = {}): Pr
     }
 
     if (!cliAuthToken) {
-      throw new Error("Timed out waiting for authorization. Run `developerdoc init` again.");
+      throw new Error("Timed out waiting for authorization. Run `developersdoc init` again.");
     }
 
     logger.info("Authorization approved. Registering project...");
@@ -227,8 +227,8 @@ export async function runInitCommand(cwd: string, options: InitOptions = {}): Pr
     await runScanCommand(cwd, { invalidateCursor: true });
   } else {
     await writeState(cwd, { lastSyncedCommit: null });
-    logger.info("You can run the first scan later with `developerdoc scan`.");
+    logger.info("You can run the first scan later with `developersdoc scan`.");
   }
 
-  logger.success("Developerdoc initialized successfully.");
+  logger.success("DevelopersDoc initialized successfully.");
 }
