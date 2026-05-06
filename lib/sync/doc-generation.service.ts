@@ -1,9 +1,14 @@
 import { prisma } from '@/lib/db';
 import { revalidateDocsNavData } from '@/lib/revalidate-docs-cache';
+import {
+  buildGeneratedPagesV2,
+  shouldUseBuildGeneratedPagesV2,
+} from '@/lib/sync/generated-doc-pages-v2';
 
 type JsonRecord = Record<string, unknown>;
 
-const GENERATED_DOC_TITLE = 'Generated Project Documentation';
+/** Exported for sync status / CLI recovery when suggestion row is missing */
+export const GENERATED_DOC_TITLE = 'Generated Project Documentation';
 const GENERATED_DOC_DESCRIPTION =
   'Auto-generated from your codebase scan. Review and edit before publishing.';
 const GENERATED_SUGGESTION_TYPE = 'initial_docs_generation';
@@ -72,6 +77,99 @@ function normalizeEnvVarNames(envVars: unknown): string[] {
   return unique(names);
 }
 
+function normalizeEnvDisplayLines(metadata: JsonRecord): string[] {
+  const names = normalizeEnvVarNames(metadata.envVars);
+  const usage = metadata.envUsage;
+  if (metadata.metadataVersion !== 2 || !Array.isArray(usage)) {
+    return names;
+  }
+
+  const lines: string[] = [];
+  for (const item of usage) {
+    if (!item || typeof item !== 'object') continue;
+    const record = item as Record<string, unknown>;
+    const name = typeof record.name === 'string' ? record.name.trim() : '';
+    if (!name) continue;
+    const purpose = typeof record.likelyPurpose === 'string' ? record.likelyPurpose.trim() : '';
+    const warn =
+      typeof record.nextPublicSecretWarning === 'string' ? record.nextPublicSecretWarning.trim() : '';
+    let line = purpose ? `${name} — ${purpose}` : name;
+    if (warn) line += ` (${warn})`;
+    lines.push(line);
+  }
+
+  return unique(lines.length ? lines : names).slice(0, 80);
+}
+
+function buildSetupGuideSteps(metadata: JsonRecord): string[] {
+  const scripts = metadata.packageScripts as Record<string, unknown> | undefined;
+  const hints = metadata.setupHints as Record<string, unknown> | undefined;
+  const pm = typeof hints?.packageManager === 'string' ? hints.packageManager : 'unknown';
+
+  const install =
+    pm === 'pnpm'
+      ? 'pnpm install'
+      : pm === 'yarn'
+        ? 'yarn'
+        : pm === 'bun'
+          ? 'bun install'
+          : 'npm install';
+
+  const devCmd = typeof scripts?.dev === 'string' ? scripts.dev : null;
+  const buildCmd = typeof scripts?.build === 'string' ? scripts.build : null;
+  const startCmd = typeof scripts?.start === 'string' ? scripts.start : null;
+  const migrateCmd =
+    typeof hints?.migrationCommand === 'string'
+      ? hints.migrationCommand
+      : typeof scripts?.prismaMigrate === 'string'
+        ? scripts.prismaMigrate
+        : null;
+  const seedCmd =
+    typeof hints?.seedCommand === 'string'
+      ? hints.seedCommand
+      : typeof scripts?.seed === 'string'
+        ? scripts.seed
+        : null;
+
+  const steps: string[] = [`<li><code>${escapeHtml(install)}</code></li>`];
+
+  if (devCmd) {
+    steps.push(`<li><code>${escapeHtml(devCmd)}</code> <span>(dev)</span></li>`);
+  } else {
+    steps.push('<li><code>npm run dev</code> <span>(fallback if no dev script in metadata)</span></li>');
+  }
+
+  if (buildCmd) {
+    steps.push(`<li><code>${escapeHtml(buildCmd)}</code> <span>(build)</span></li>`);
+  }
+  if (startCmd) {
+    steps.push(`<li><code>${escapeHtml(startCmd)}</code> <span>(start)</span></li>`);
+  }
+  if (migrateCmd) {
+    steps.push(`<li><code>${escapeHtml(migrateCmd)}</code> <span>(database migrations)</span></li>`);
+  }
+  if (seedCmd) {
+    steps.push(`<li><code>${escapeHtml(seedCmd)}</code> <span>(seed)</span></li>`);
+  }
+
+  const nodeEngine = typeof hints?.nodeEngine === 'string' ? hints.nodeEngine.trim() : '';
+  const extras: string[] = [];
+  if (nodeEngine) {
+    extras.push(`<p><strong>Engines (package.json):</strong> Node ${escapeHtml(nodeEngine)}</p>`);
+  }
+  if (hints?.databaseRequired) {
+    extras.push('<p>A database appears to be required (Prisma or schema detected). Ensure local DB URLs are configured.</p>');
+  }
+  if (hints?.clerkDetected) {
+    extras.push('<p>Clerk auth detected — configure Clerk API keys and redirect URLs for each environment.</p>');
+  }
+  if (hints?.vercelDetected) {
+    extras.push('<p>Vercel-oriented tooling detected — confirm environment variables are set in the Vercel project.</p>');
+  }
+
+  return [`<ol>${steps.join('')}</ol>`, ...extras];
+}
+
 function normalizeRoutes(routes: unknown): string[] {
   if (!Array.isArray(routes)) return [];
   const parsed: string[] = [];
@@ -111,7 +209,7 @@ function buildGeneratedPages(metadataInput: unknown, detectedFramework?: string 
   const devDependencies = unique(toStringArray(metadata.devDependencies));
   const fileTree = unique(toStringArray(metadata.fileTree)).slice(0, 40);
   const routes = normalizeRoutes(metadata.routes);
-  const envVars = normalizeEnvVarNames(metadata.envVars);
+  const envVars = normalizeEnvDisplayLines(metadata);
   const dbFiles = unique(toStringArray(metadata.dbFiles));
   const authFiles = unique(toStringArray(metadata.authFiles));
   const deploymentFiles = unique(toStringArray(metadata.deploymentFiles));
@@ -177,7 +275,11 @@ function buildGeneratedPages(metadataInput: unknown, detectedFramework?: string 
       sections: [
         toPageSection('', [
           `<p>Use these baseline setup steps and verify them against your package scripts.</p>`,
-          `<ol><li><code>npm install</code></li><li><code>npm run dev</code></li><li><code>npm run build</code></li></ol>`,
+          ...(metadata.metadataVersion === 2
+            ? buildSetupGuideSteps(metadata)
+            : [
+                `<ol><li><code>npm install</code></li><li><code>npm run dev</code></li><li><code>npm run build</code></li></ol>`,
+              ]),
           `<p>Confirm script names and required local services (database, cache, background workers).</p>`,
         ]),
       ],
@@ -248,13 +350,28 @@ function buildGeneratedPages(metadataInput: unknown, detectedFramework?: string 
 
 function extractEvidenceFiles(metadataInput: unknown): string[] {
   const metadata = toObject(metadataInput);
-  const candidateLists = [
+  const candidateLists: string[][] = [
     toStringArray(metadata.fileTree).slice(0, 15),
     toStringArray(metadata.dbFiles),
     toStringArray(metadata.authFiles),
     toStringArray(metadata.deploymentFiles),
     toStringArray(metadata.docsFiles),
   ];
+
+  if (metadata.metadataVersion === 2) {
+    const apiRoutes = metadata.apiRoutes as Array<{ filePath?: string }> | undefined;
+    if (Array.isArray(apiRoutes)) {
+      candidateLists.push(
+        apiRoutes.map((r) => r.filePath).filter((p): p is string => typeof p === 'string' && p.length > 0)
+      );
+    }
+    const importantDocs = metadata.importantDocs as Array<{ path?: string }> | undefined;
+    if (Array.isArray(importantDocs)) {
+      candidateLists.push(
+        importantDocs.map((d) => d.path).filter((p): p is string => typeof p === 'string' && p.length > 0)
+      );
+    }
+  }
 
   return unique(candidateLists.flat()).slice(0, 50);
 }
@@ -294,7 +411,6 @@ export async function generateInitialDocumentationForSyncProject(syncProjectId: 
       projectId: syncProject.projectId,
       userId: syncProject.userId,
       title: GENERATED_DOC_TITLE,
-      aiSuggestions: { some: { suggestionType: GENERATED_SUGGESTION_TYPE } },
     },
     select: { id: true, title: true },
   });
@@ -307,74 +423,84 @@ export async function generateInitialDocumentationForSyncProject(syncProjectId: 
     };
   }
 
-  const generatedPages = buildGeneratedPages(latestSnapshot.metadata, latestSnapshot.framework);
+  const generatedPages = shouldUseBuildGeneratedPagesV2(latestSnapshot.metadata)
+    ? buildGeneratedPagesV2(latestSnapshot.metadata, latestSnapshot.framework)
+    : buildGeneratedPages(latestSnapshot.metadata, latestSnapshot.framework);
   const evidenceFiles = extractEvidenceFiles(latestSnapshot.metadata);
 
-  const result = await prisma.$transaction(async (tx) => {
-    const document = await tx.document.create({
-      data: {
-        label: GENERATED_DOC_TITLE,
-        title: GENERATED_DOC_TITLE,
-        description: GENERATED_DOC_DESCRIPTION,
-        userId: syncProject.userId,
-        projectId: syncProject.projectId,
-        lastUpdated: new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        }),
-      },
-    });
-
-    for (let i = 0; i < generatedPages.length; i += 1) {
-      const page = generatedPages[i];
-      await tx.page.create({
+  // Interactive transactions default to a 5s timeout in Prisma; generating many pages + nested
+  // sections routinely exceeds that (scan POST ~10–15s), which surfaces as P2028 on Postgres/Neon.
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const document = await tx.document.create({
         data: {
-          title: page.title,
-          pageNumber: i + 1,
+          label: GENERATED_DOC_TITLE,
+          title: GENERATED_DOC_TITLE,
+          description: GENERATED_DOC_DESCRIPTION,
+          userId: syncProject.userId,
+          projectId: syncProject.projectId,
+          lastUpdated: new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          }),
+        },
+      });
+
+      for (let i = 0; i < generatedPages.length; i += 1) {
+        const page = generatedPages[i];
+        await tx.page.create({
+          data: {
+            title: page.title,
+            pageNumber: i + 1,
+            documentId: document.id,
+            sections: {
+              create: page.sections.map((section) => ({
+                title: section.title,
+                type: 'html',
+                content: section.content,
+              })),
+            },
+          },
+        });
+      }
+
+      await tx.docAISuggestion.create({
+        data: {
+          projectId: syncProject.projectId,
           documentId: document.id,
-          sections: {
-            create: page.sections.map((section) => ({
-              title: section.title,
-              type: 'html',
-              content: section.content,
-            })),
+          sourceSnapshotId: latestSnapshot.id,
+          suggestionType: GENERATED_SUGGESTION_TYPE,
+          status: 'pending',
+          payload: {
+            message: 'Initial documentation generated — review recommended',
+            generatedFromSyncProjectId: syncProject.id,
+          },
+          evidenceFiles,
+        },
+      });
+
+      const syncMetadata = toObject(syncProject.metadata);
+      await tx.docSyncProject.update({
+        where: { id: syncProject.id },
+        data: {
+          metadata: {
+            ...syncMetadata,
+            initialDocsGenerated: true,
+            initialDocsGeneratedAt: new Date().toISOString(),
+            generatedDocumentId: document.id,
+            generatedDocumentTitle: document.title,
           },
         },
       });
-    }
 
-    await tx.docAISuggestion.create({
-      data: {
-        projectId: syncProject.projectId,
-        documentId: document.id,
-        sourceSnapshotId: latestSnapshot.id,
-        suggestionType: GENERATED_SUGGESTION_TYPE,
-        status: 'pending',
-        payload: {
-          message: 'Initial documentation generated — review recommended',
-          generatedFromSyncProjectId: syncProject.id,
-        },
-        evidenceFiles,
-      },
-    });
-
-    const syncMetadata = toObject(syncProject.metadata);
-    await tx.docSyncProject.update({
-      where: { id: syncProject.id },
-      data: {
-        metadata: {
-          ...syncMetadata,
-          initialDocsGenerated: true,
-          initialDocsGeneratedAt: new Date().toISOString(),
-          generatedDocumentId: document.id,
-          generatedDocumentTitle: document.title,
-        },
-      },
-    });
-
-    return document;
-  });
+      return document;
+    },
+    {
+      maxWait: 20_000,
+      timeout: 180_000,
+    },
+  );
 
   revalidateDocsNavData();
 

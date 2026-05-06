@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/users';
-import { prisma } from '@/lib/db';
 import {
+  findProjectIfUserHasAccess,
   listProjectSyncStatus,
   listRecentSyncChanges,
 } from '@/lib/sync/sync.service';
@@ -18,11 +18,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'projectId is required' }, { status: 400 });
     }
 
-    const project = await prisma.project.findFirst({
-      where: { id: projectId, userId: user.id },
-      select: { id: true },
-    });
-    if (!project) {
+    const projectAccess = await findProjectIfUserHasAccess(projectId, user.id);
+    if (!projectAccess) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

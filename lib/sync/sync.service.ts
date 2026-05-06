@@ -1,5 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { prisma } from '@/lib/db';
+import { GENERATED_DOC_TITLE } from '@/lib/sync/doc-generation.service';
 
 type JsonValue = Record<string, unknown> | unknown[] | string | number | boolean | null;
 
@@ -11,13 +12,30 @@ function generateSyncToken(): string {
   return randomBytes(32).toString('hex');
 }
 
-export async function getSyncProjectForUser(projectId: string, userId: string) {
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, userId },
+/** Owner or accepted project share — used for CLI sync UI + DocSyncProject lookup */
+export async function findProjectIfUserHasAccess(projectId: string, userId: string) {
+  return prisma.project.findFirst({
+    where: {
+      id: projectId,
+      OR: [
+        { userId },
+        {
+          shares: {
+            some: {
+              sharedWith: userId,
+              status: 'accepted',
+            },
+          },
+        },
+      ],
+    },
     select: { id: true },
   });
+}
 
-  if (!project) {
+export async function getSyncProjectForUser(projectId: string, userId: string) {
+  const access = await findProjectIfUserHasAccess(projectId, userId);
+  if (!access) {
     return null;
   }
 
@@ -153,7 +171,24 @@ export async function listRecentSyncChanges(projectId: string, userId: string) {
 }
 
 export async function listProjectSyncStatus(projectId: string, userId: string) {
-  const syncProject = await getSyncProjectForUser(projectId, userId);
+  const access = await findProjectIfUserHasAccess(projectId, userId);
+  if (!access) {
+    return {
+      connected: false,
+      syncProject: null,
+      recentChangesCount: 0,
+      pendingSuggestionsCount: 0,
+      lastScanTime: null as Date | null,
+      generatedDocumentation: null as
+        | null
+        | { generated: boolean; documentId: string | null; documentTitle: string | null },
+    };
+  }
+
+  const syncProject = await prisma.docSyncProject.findUnique({
+    where: { projectId },
+  });
+
   if (!syncProject) {
     return {
       connected: false,
@@ -167,7 +202,8 @@ export async function listProjectSyncStatus(projectId: string, userId: string) {
     };
   }
 
-  const [recentChangesCount, pendingSuggestionsCount, latestSnapshot, generatedDocSuggestion] = await Promise.all([
+  const [recentChangesCount, pendingSuggestionsCount, latestSnapshot, generatedDocSuggestion] =
+    await Promise.all([
     prisma.docSyncChange.count({
       where: {
         syncProjectId: syncProject.id,
@@ -200,6 +236,19 @@ export async function listProjectSyncStatus(projectId: string, userId: string) {
     }),
   ]);
 
+  let generatedDocId = generatedDocSuggestion?.documentId ?? null;
+  let generatedDocTitle = generatedDocSuggestion?.document?.title ?? null;
+  if (!generatedDocId) {
+    const fallbackDoc = await prisma.document.findFirst({
+      where: { projectId, title: GENERATED_DOC_TITLE },
+      select: { id: true, title: true },
+    });
+    if (fallbackDoc) {
+      generatedDocId = fallbackDoc.id;
+      generatedDocTitle = fallbackDoc.title;
+    }
+  }
+
   return {
     connected: true,
     syncProject,
@@ -207,9 +256,9 @@ export async function listProjectSyncStatus(projectId: string, userId: string) {
     pendingSuggestionsCount,
     lastScanTime: latestSnapshot?.createdAt || syncProject.lastScanAt,
     generatedDocumentation: {
-      generated: Boolean(generatedDocSuggestion?.documentId),
-      documentId: generatedDocSuggestion?.documentId ?? null,
-      documentTitle: generatedDocSuggestion?.document?.title ?? null,
+      generated: Boolean(generatedDocId),
+      documentId: generatedDocId,
+      documentTitle: generatedDocTitle,
     },
   };
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { createSyncProject } from "@/lib/sync/sync.service";
 import { consumeCliAuthToken } from "@/lib/sync/cli-auth.service";
+import { revalidateDocsNavData } from "@/lib/revalidate-docs-cache";
 
 function toProjectLabel(projectName: string, repoName: string): string {
   const trimmed = projectName.trim();
@@ -62,6 +63,9 @@ export async function POST(request: Request) {
       repoName,
       privacyMode,
     });
+
+    /** Sidebar uses unstable_cache(nav-data); invalidate so the new project appears without waiting for TTL. */
+    revalidateDocsNavData();
 
     return NextResponse.json({
       success: true,

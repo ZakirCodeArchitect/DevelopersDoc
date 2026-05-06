@@ -4,8 +4,16 @@ import { getCurrentBranch, getHeadCommit } from "../utils/git.js";
 import { logger } from "../utils/logger.js";
 import { scanMetadata } from "../utils/scanner.js";
 
-export async function runScanCommand(cwd: string): Promise<void> {
+export interface RunScanOptions {
+  /** After `init`, drop any previous sync cursor so a failed first scan cannot leave a stale SHA from another link. */
+  invalidateCursor?: boolean;
+}
+
+export async function runScanCommand(cwd: string, options: RunScanOptions = {}): Promise<void> {
   const config = await readConfig(cwd);
+  if (options.invalidateCursor) {
+    await writeState(cwd, { lastSyncedCommit: null });
+  }
   logger.info("Scanning repository metadata...");
 
   const [branch, headCommit, metadata] = await Promise.all([
@@ -19,6 +27,7 @@ export async function runScanCommand(cwd: string): Promise<void> {
       branch,
       commitSha: headCommit,
       metadata,
+      framework: metadata.framework,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown scan error";

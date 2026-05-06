@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storeInitialScan, validateSyncToken } from '@/lib/sync/sync.service';
-import { prisma } from '@/lib/db';
 import { generateInitialDocumentationForSyncProject } from '@/lib/sync/doc-generation.service';
+import { revalidateDocsNavData } from '@/lib/revalidate-docs-cache';
 import { Prisma } from '@prisma/client';
 
 function extractBearerToken(request: NextRequest): string | null {
   const header = request.headers.get('authorization');
   if (!header || !header.toLowerCase().startsWith('bearer ')) return null;
   return header.slice(7).trim() || null;
+}
+
+function frameworkFromScanPayload(metadata: unknown, bodyFramework: string | undefined): string | undefined {
+  if (typeof bodyFramework === 'string' && bodyFramework.trim()) return bodyFramework.trim();
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return undefined;
+  const fw = (metadata as Record<string, unknown>).framework;
+  return typeof fw === 'string' && fw.trim() ? fw.trim() : undefined;
 }
 
 function hasObviousSecrets(value: unknown): boolean {
@@ -30,7 +37,7 @@ export async function POST(request: NextRequest) {
     const syncToken = (body.syncToken as string | undefined) || extractBearerToken(request);
     const commitSha = body.commitSha as string | undefined;
     const branch = body.branch as string | undefined;
-    const framework = body.framework as string | undefined;
+    const framework = frameworkFromScanPayload(body.metadata, body.framework as string | undefined);
     const metadata = body.metadata;
 
     if (!syncProjectId || !syncToken || !commitSha || !metadata) {
@@ -52,10 +59,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid sync credentials' }, { status: 401 });
     }
 
-    const snapshotCountBeforeScan = await prisma.docSyncSnapshot.count({
-      where: { syncProjectId: syncProject.id },
-    });
-
     await storeInitialScan({
       syncProjectId: syncProject.id,
       commitSha,
@@ -64,13 +67,19 @@ export async function POST(request: NextRequest) {
       metadata,
     });
 
-    if (snapshotCountBeforeScan === 0) {
-      try {
-        await generateInitialDocumentationForSyncProject(syncProject.id);
-      } catch (generationError) {
-        console.error('Initial docs generation failed after first scan:', generationError);
-      }
+    /**
+     * Run after every scan: generateInitialDocumentationForSyncProject skips work when a generated
+     * doc already exists. Previously we only ran this on the first snapshot — if that run failed,
+     * later scans never retried, leaving 0 documents until manual action.
+     */
+    try {
+      await generateInitialDocumentationForSyncProject(syncProject.id);
+    } catch (generationError) {
+      console.error('Initial docs generation failed after scan:', generationError);
     }
+
+    /** Refresh sidebar/nav cache even when initial doc generation skips (e.g. already generated). */
+    revalidateDocsNavData();
 
     return NextResponse.json({ success: true });
   } catch (error) {

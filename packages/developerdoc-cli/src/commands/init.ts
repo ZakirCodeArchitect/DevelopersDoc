@@ -209,10 +209,6 @@ export async function runInitCommand(cwd: string, options: InitOptions = {}): Pr
 
   await writeConfig(cwd, { apiUrl, projectId, syncProjectId, syncToken, privacyMode });
 
-  await writeState(cwd, {
-    lastSyncedCommit: null,
-  });
-
   await ensureConfigInGitIgnore(cwd);
 
   const scanPrompt = await prompts(
@@ -228,8 +224,9 @@ export async function runInitCommand(cwd: string, options: InitOptions = {}): Pr
   );
 
   if (scanPrompt.runScanNow) {
-    await runScanCommand(cwd);
+    await runScanCommand(cwd, { invalidateCursor: true });
   } else {
+    await writeState(cwd, { lastSyncedCommit: null });
     logger.info("You can run the first scan later with `developerdoc scan`.");
   }
 
